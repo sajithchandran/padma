@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: padma-postgres
+    restart: unless-stopped
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: padma
+      POSTGRES_PASSWORD: padma_dev_secret
+      POSTGRES_DB: padma_core
+    volumes:
+      - padma_pgdata:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U padma']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: padma-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: padma-pgadmin
+    restart: unless-stopped
+    ports:
+      - '8081:80'
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@padma.dev
+      PGADMIN_DEFAULT_PASSWORD: padma_admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - padma_pgadmin:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  padma_pgdata:
+  padma_pgadmin:

@@ -1,0 +1,2 @@
+postgres:5432:padma_core:padma:padma_dev_secret
+postgres:5432:padma_engagement:padma:padma_dev_secret

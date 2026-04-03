@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-engagement"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_ENGAGEMENT_URL")
+}
+
+// ============================================================
+// COMMUNICATION TEMPLATE
+// ============================================================
+
+model CommunicationTemplate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  code     String @db.VarChar(100)
+  name     String @db.VarChar(255)
+  channel  String @db.VarChar(20)
+  // sms | whatsapp | email | in_app | push
+  language String @default("en") @db.VarChar(5)
+
+  subject    String? @db.VarChar(500)
+  bodyTemplate String @map("body_template") @db.Text
+  variables    Json?  @db.JsonB // expected variable names for validation
+
+  category String @default("reminder") @db.VarChar(30)
+  // reminder | escalation | welcome | transition | graduation | ad_hoc
+
+  version Int    @default(1) @db.SmallInt
+  status  String @default("draft") @db.VarChar(20)
+  // draft | pending_approval | approved | rejected | archived
+
+  approvedBy String?   @map("approved_by") @db.Uuid
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code, channel, language, version])
+  @@index([tenantId, category, channel, status])
+  @@map("communication_templates")
+}
+
+// ============================================================
+// PATIENT PREFERENCE
+// ============================================================
+
+model PatientPreference {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  preferredLanguage String @default("en") @map("preferred_language") @db.VarChar(5)
+  channelPreference Json   @default("[\"whatsapp\", \"sms\", \"email\"]") @map("channel_preference") @db.JsonB
+
+  quietHoursStart String? @map("quiet_hours_start") @db.VarChar(5) // HH:mm
+  quietHoursEnd   String? @map("quiet_hours_end") @db.VarChar(5)
+  timezone        String  @default("Asia/Dubai") @db.VarChar(50)
+
+  doNotDisturb Boolean @default(false) @map("do_not_disturb")
+  optOutSms    Boolean @default(false) @map("opt_out_sms")
+  optOutEmail  Boolean @default(false) @map("opt_out_email")
+  optOutWhatsapp Boolean @default(false) @map("opt_out_whatsapp")
+  optOutCall   Boolean @default(false) @map("opt_out_call")
+
+  guardianName    String? @map("guardian_name") @db.VarChar(255)
+  guardianPhone   String? @map("guardian_phone") @db.VarChar(20)
+  guardianRelation String? @map("guardian_relation") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, patientId])
+  @@map("patient_preferences")
+}
+
+// ============================================================
+// PATIENT MESSAGE
+// ============================================================
+
+model PatientMessage {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  channel      String @db.VarChar(20)
+  direction    String @default("outbound") @db.VarChar(10) // outbound | inbound
+  templateCode String? @map("template_code") @db.VarChar(100)
+
+  subject String? @db.VarChar(500)
+  body    String  @db.Text
+
+  purpose String @default("reminder") @db.VarChar(30)
+  // reminder | escalation | welcome | transition | graduation | ad_hoc
+
+  relatedEntityType String? @map("related_entity_type") @db.VarChar(30)
+  relatedEntityId   String? @map("related_entity_id") @db.Uuid
+
+  status String @default("pending") @db.VarChar(20)
+  // pending | queued | sent | delivered | read | failed | skipped
+
+  providerName     String? @map("provider_name") @db.VarChar(30)
+  providerRef      String? @map("provider_ref") @db.VarChar(255)
+  providerResponse Json?   @map("provider_response") @db.JsonB
+
+  failureReason String? @map("failure_reason") @db.Text
+  retryCount    Int     @default(0) @map("retry_count") @db.SmallInt
+
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(255)
+
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, patientId, createdAt(sort: Desc)])
+  @@index([tenantId, status, channel])
+  @@map("patient_messages")
+}
+
+// ============================================================
+// PATIENT CONSENT (GDPR)
+// ============================================================
+
+model PatientConsent {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  consentType String @map("consent_type") @db.VarChar(50)
+  // data_processing | communication_whatsapp | communication_sms
+  // | communication_email | communication_call
+  // | data_sharing_medha | data_sharing_salesforce
+
+  status String @default("granted") @db.VarChar(20)
+  // granted | withdrawn | expired
+
+  grantedAt   DateTime  @map("granted_at") @db.Timestamptz(6)
+  withdrawnAt DateTime? @map("withdrawn_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  consentVersion   String? @map("consent_version") @db.VarChar(20)
+  collectionMethod String  @map("collection_method") @db.VarChar(20)
+  // app | paper | verbal_recorded
+
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, patientId, consentType, status])
+  @@map("patient_consents")
+}
+
+// ============================================================
+// PROVIDER CALLBACK
+// ============================================================
+
+model ProviderCallback {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  providerName String @map("provider_name") @db.VarChar(30)
+  providerRef  String @map("provider_ref") @db.VarChar(255)
+
+  callbackType String @map("callback_type") @db.VarChar(30)
+  // delivery | read | bounce | complaint
+
+  payload   Json     @db.JsonB
+  processed Boolean  @default(false)
+
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  @@index([tenantId, providerRef])
+  @@index([tenantId, processed])
+  @@map("provider_callbacks")
+}

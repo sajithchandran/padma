@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Padma (postgres)",
+      "Group": "Padma",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "padma_core",
+      "Username": "padma",
+      "Password": "padma_dev_secret",
+      "SSLMode": "prefer"
+    }
+  }
+}

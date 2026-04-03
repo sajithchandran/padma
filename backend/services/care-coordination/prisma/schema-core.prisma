@@ -1,0 +1,506 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client-core"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_CORE_URL")
+}
+
+// ============================================================
+// CLINICAL PATHWAY (top-level evidence-based protocol)
+// ============================================================
+
+model ClinicalPathway {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+
+  code        String @db.VarChar(100)
+  name        String @db.VarChar(255)
+  description String? @db.Text
+  category    String @db.VarChar(50)
+  // diabetes | hypertension | cardiac | rehab | respiratory | oncology | wellness | custom
+
+  applicableSettings Json @default("[]") @map("applicable_settings") @db.JsonB
+  // ["outpatient", "inpatient", "home_care"]
+
+  version              Int @default(1) @db.SmallInt
+  defaultDurationDays  Int @map("default_duration_days")
+
+  externalSourceSystem String? @map("external_source_system") @db.VarChar(50)
+  externalSourceId     String? @map("external_source_id") @db.VarChar(255)
+
+  status    String  @default("draft") @db.VarChar(20)
+  // draft | active | deprecated | archived
+  isActive  Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  stages      PathwayStage[]
+  transitions StageTransitionRule[]
+  enrollments PatientPathwayEnrollment[]
+
+  @@unique([tenantId, code, version], name: "uq_pathway_tenant_code_version")
+  @@index([tenantId, category, isActive])
+  @@index([tenantId, status])
+  @@map("clinical_pathways")
+}
+
+// ============================================================
+// PATHWAY STAGE (ordered phases within a pathway)
+// ============================================================
+
+model PathwayStage {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  pathwayId String @map("pathway_id") @db.Uuid
+
+  code        String @db.VarChar(100)
+  name        String @db.VarChar(255)
+  description String? @db.Text
+
+  stageType String @map("stage_type") @db.VarChar(20)
+  // entry | intermediate | decision | terminal
+
+  careSetting String @default("any") @map("care_setting") @db.VarChar(20)
+  // outpatient | inpatient | home_care | any
+
+  sortOrder          Int  @map("sort_order") @db.SmallInt
+  expectedDurationDays Int? @map("expected_duration_days")
+  minDurationDays      Int? @map("min_duration_days")
+  autoTransition       Boolean @default(false) @map("auto_transition")
+
+  entryActions Json? @map("entry_actions") @db.JsonB
+  exitActions  Json? @map("exit_actions") @db.JsonB
+  metadata     Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  pathway                ClinicalPathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  interventionTemplates  StageInterventionTemplate[]
+  transitionsFrom        StageTransitionRule[] @relation("FromStage")
+  transitionsTo          StageTransitionRule[] @relation("ToStage")
+  currentEnrollments     PatientPathwayEnrollment[] @relation("CurrentStage")
+  stageHistoryFrom       PatientStageHistory[] @relation("HistoryFromStage")
+  stageHistoryTo         PatientStageHistory[] @relation("HistoryToStage")
+
+  @@unique([tenantId, pathwayId, code], name: "uq_stage_tenant_pathway_code")
+  @@index([tenantId, pathwayId, sortOrder])
+  @@map("pathway_stages")
+}
+
+// ============================================================
+// STAGE INTERVENTION TEMPLATE
+// ============================================================
+
+model StageInterventionTemplate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  stageId  String @map("stage_id") @db.Uuid
+
+  interventionType String @map("intervention_type") @db.VarChar(30)
+  // consultation | lab_test | medication | therapy | nutrition | follow_up
+  // | assessment | education | vital_signs | device_reading | telehealth
+  // | home_visit | bedside_monitoring | discharge_planning
+
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+
+  careSetting  String @default("any") @map("care_setting") @db.VarChar(20)
+  deliveryMode String @default("in_person") @map("delivery_mode") @db.VarChar(30)
+  // in_person | telehealth | remote_monitoring | self_report | app_based
+
+  frequencyType  String @map("frequency_type") @db.VarChar(20)
+  // once | daily | weekly | biweekly | monthly | quarterly | custom_days
+  frequencyValue Int?   @map("frequency_value")
+
+  startDayOffset Int  @default(0) @map("start_day_offset")
+  endDayOffset   Int? @map("end_day_offset")
+
+  defaultOwnerRole String? @map("default_owner_role") @db.VarChar(50)
+
+  autoCompleteSource    String? @map("auto_complete_source") @db.VarChar(30)
+  // athma_opd | athma_lab | athma_pharmacy | athma_inpatient | device_sync
+  // | telehealth | home_visit | patient_self_report | manual | none
+  autoCompleteEventType String? @map("auto_complete_event_type") @db.VarChar(100)
+
+  priority   Int     @default(2) @db.SmallInt
+  isCritical Boolean @default(false) @map("is_critical")
+
+  reminderConfig Json? @map("reminder_config") @db.JsonB
+  metadata       Json? @db.JsonB
+  sortOrder      Int   @default(0) @map("sort_order") @db.SmallInt
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  stage PathwayStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  tasks CareTask[]
+
+  @@index([tenantId, stageId, sortOrder])
+  @@map("stage_intervention_templates")
+}
+
+// ============================================================
+// STAGE TRANSITION RULE (decision nodes)
+// ============================================================
+
+model StageTransitionRule {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  pathwayId String @map("pathway_id") @db.Uuid
+
+  fromStageId String @map("from_stage_id") @db.Uuid
+  toStageId   String @map("to_stage_id") @db.Uuid
+
+  ruleName        String  @map("rule_name") @db.VarChar(255)
+  ruleDescription String? @map("rule_description") @db.Text
+
+  triggerType String @map("trigger_type") @db.VarChar(20)
+  // outcome_based | time_based | manual | event_based
+
+  conditionExpr Json @map("condition_expr") @db.JsonB
+
+  priority    Int     @default(100) @db.SmallInt
+  isAutomatic Boolean @default(false) @map("is_automatic")
+  isActive    Boolean @default(true) @map("is_active")
+
+  transitionActions Json? @map("transition_actions") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  pathway   ClinicalPathway @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  fromStage PathwayStage    @relation("FromStage", fields: [fromStageId], references: [id])
+  toStage   PathwayStage    @relation("ToStage", fields: [toStageId], references: [id])
+  stageHistory PatientStageHistory[]
+
+  @@index([tenantId, fromStageId, isActive, priority])
+  @@map("stage_transition_rules")
+}
+
+// ============================================================
+// PATIENT PATHWAY ENROLLMENT (runtime instance)
+// ============================================================
+
+model PatientPathwayEnrollment {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  patientDisplayName String? @map("patient_display_name") @db.VarChar(255)
+  patientMrn         String? @map("patient_mrn") @db.VarChar(50)
+  patientGender      String? @map("patient_gender") @db.VarChar(1)
+  patientDob         DateTime? @map("patient_dob") @db.Date
+
+  pathwayId      String @map("pathway_id") @db.Uuid
+  pathwayVersion Int    @map("pathway_version") @db.SmallInt
+
+  planName String @map("plan_name") @db.VarChar(255)
+  category String @db.VarChar(50)
+
+  enrollmentDate  DateTime  @map("enrollment_date") @db.Date
+  startDate       DateTime  @map("start_date") @db.Date
+  expectedEndDate DateTime  @map("expected_end_date") @db.Date
+  actualEndDate   DateTime? @map("actual_end_date") @db.Date
+
+  currentStageId        String   @map("current_stage_id") @db.Uuid
+  currentStageEnteredAt DateTime @map("current_stage_entered_at") @db.Timestamptz(6)
+  currentCareSetting    String   @default("outpatient") @map("current_care_setting") @db.VarChar(20)
+  previousStageId       String?  @map("previous_stage_id") @db.Uuid
+
+  primaryCoordinatorId String? @map("primary_coordinator_id") @db.Uuid
+  careTeam             Json?   @map("care_team") @db.JsonB
+
+  status       String  @default("active") @db.VarChar(20)
+  // active | paused | completed | cancelled | graduated | dropped_out
+  statusReason String? @map("status_reason") @db.Text
+
+  totalTasks      Int      @default(0) @map("total_tasks")
+  completedTasks  Int      @default(0) @map("completed_tasks")
+  overdueTasks    Int      @default(0) @map("overdue_tasks")
+  adherencePercent Decimal? @map("adherence_percent") @db.Decimal(5, 2)
+
+  athmaPatientId String? @map("athma_patient_id") @db.VarChar(255)
+  athmaProductId String? @map("athma_product_id") @db.VarChar(255)
+
+  clinicalData Json? @map("clinical_data") @db.JsonB
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  pathway      ClinicalPathway @relation(fields: [pathwayId], references: [id])
+  currentStage PathwayStage    @relation("CurrentStage", fields: [currentStageId], references: [id])
+  tasks        CareTask[]
+  stageHistory PatientStageHistory[]
+
+  @@index([tenantId, patientId, status])
+  @@index([tenantId, currentStageId, status])
+  @@index([tenantId, primaryCoordinatorId, status])
+  @@index([tenantId, status, adherencePercent])
+  @@index([tenantId, category, status])
+  @@map("patient_pathway_enrollments")
+}
+
+// ============================================================
+// PATIENT STAGE HISTORY (audit trail)
+// ============================================================
+
+model PatientStageHistory {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @map("tenant_id") @db.Uuid
+  enrollmentId String @map("enrollment_id") @db.Uuid
+
+  fromStageId   String? @map("from_stage_id") @db.Uuid
+  fromStageName String? @map("from_stage_name") @db.VarChar(255)
+  toStageId     String  @map("to_stage_id") @db.Uuid
+  toStageName   String  @map("to_stage_name") @db.VarChar(255)
+
+  transitionRuleId String? @map("transition_rule_id") @db.Uuid
+  transitionType   String  @map("transition_type") @db.VarChar(30)
+  // automatic | manual | coordinator_approved | initial_enrollment
+
+  reason               String? @db.Text
+  clinicalDataSnapshot Json?   @map("clinical_data_snapshot") @db.JsonB
+  performedBy          String? @map("performed_by") @db.Uuid
+
+  transitionedAt DateTime @default(now()) @map("transitioned_at") @db.Timestamptz(6)
+
+  enrollment     PatientPathwayEnrollment @relation(fields: [enrollmentId], references: [id])
+  fromStage      PathwayStage?            @relation("HistoryFromStage", fields: [fromStageId], references: [id])
+  toStage        PathwayStage             @relation("HistoryToStage", fields: [toStageId], references: [id])
+  transitionRule StageTransitionRule?     @relation(fields: [transitionRuleId], references: [id])
+
+  @@index([tenantId, enrollmentId, transitionedAt(sort: Desc)])
+  @@map("patient_stage_history")
+}
+
+// ============================================================
+// CARE TASK
+// ============================================================
+
+model CareTask {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @map("tenant_id") @db.Uuid
+  patientId    String @map("patient_id") @db.Uuid
+  enrollmentId String @map("enrollment_id") @db.Uuid
+  stageId      String @map("stage_id") @db.Uuid
+
+  patientDisplayName String? @map("patient_display_name") @db.VarChar(255)
+  patientMrn         String? @map("patient_mrn") @db.VarChar(50)
+
+  interventionTemplateId String? @map("intervention_template_id") @db.Uuid
+  interventionType       String  @map("intervention_type") @db.VarChar(30)
+
+  title       String  @db.VarChar(500)
+  description String? @db.Text
+
+  careSetting  String @default("outpatient") @map("care_setting") @db.VarChar(20)
+  deliveryMode String @default("in_person") @map("delivery_mode") @db.VarChar(30)
+
+  dueDate         DateTime  @map("due_date") @db.Date
+  dueTime         String?   @map("due_time") @db.VarChar(5)
+  windowStartDate DateTime? @map("window_start_date") @db.Date
+  windowEndDate   DateTime? @map("window_end_date") @db.Date
+
+  occurrenceNumber Int  @default(1) @map("occurrence_number")
+  totalOccurrences Int? @map("total_occurrences")
+
+  assignedToUserId String? @map("assigned_to_user_id") @db.Uuid
+  assignedToRole   String? @map("assigned_to_role") @db.VarChar(50)
+
+  priority   Int     @default(2) @db.SmallInt
+  isCritical Boolean @default(false) @map("is_critical")
+
+  status String @default("pending") @db.VarChar(20)
+  // pending | upcoming | active | completed | auto_completed | skipped | cancelled | overdue
+
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+  completedBy        String?   @map("completed_by") @db.Uuid
+  completionMethod   String?   @map("completion_method") @db.VarChar(30)
+  completionNotes    String?   @map("completion_notes") @db.Text
+  completionEvidence Json?     @map("completion_evidence") @db.JsonB
+
+  autoCompleteSource    String? @map("auto_complete_source") @db.VarChar(30)
+  autoCompleteEventType String? @map("auto_complete_event_type") @db.VarChar(100)
+
+  escalationLevel Int       @default(0) @map("escalation_level") @db.SmallInt
+  lastEscalatedAt DateTime? @map("last_escalated_at") @db.Timestamptz(6)
+
+  lastReminderSentAt DateTime? @map("last_reminder_sent_at") @db.Timestamptz(6)
+  reminderCount      Int       @default(0) @map("reminder_count") @db.SmallInt
+  nextReminderAt     DateTime? @map("next_reminder_at") @db.Timestamptz(6)
+
+  metadata Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  enrollment           PatientPathwayEnrollment @relation(fields: [enrollmentId], references: [id])
+  interventionTemplate StageInterventionTemplate? @relation(fields: [interventionTemplateId], references: [id])
+  taskEvents           CareTaskEvent[]
+
+  @@index([tenantId, patientId, status, dueDate])
+  @@index([tenantId, enrollmentId, stageId, status])
+  @@index([tenantId, assignedToUserId, status, dueDate])
+  @@index([tenantId, status, dueDate], name: "idx_tasks_overdue_scan")
+  @@index([tenantId, autoCompleteEventType, status], name: "idx_tasks_autocompletion")
+  @@index([tenantId, nextReminderAt, status], name: "idx_tasks_reminder_scan")
+  @@map("care_tasks")
+}
+
+// ============================================================
+// CARE TASK EVENT (audit trail)
+// ============================================================
+
+model CareTaskEvent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  taskId   String @map("task_id") @db.Uuid
+
+  eventType  String  @map("event_type") @db.VarChar(30)
+  // created | status_changed | assigned | escalated | reminder_sent | auto_completed | note_added
+  fromStatus String? @map("from_status") @db.VarChar(20)
+  toStatus   String? @map("to_status") @db.VarChar(20)
+
+  payload     Json?   @db.JsonB
+  performedBy String? @map("performed_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  task CareTask @relation(fields: [taskId], references: [id])
+
+  @@index([tenantId, taskId, createdAt(sort: Desc)])
+  @@map("care_task_events")
+}
+
+// ============================================================
+// ESCALATION RULE
+// ============================================================
+
+model EscalationRule {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+
+  triggerType String @map("trigger_type") @db.VarChar(40)
+  // task_overdue | task_critical_overdue | patient_inactive | adherence_below_threshold
+
+  conditionExpr   Json @map("condition_expr") @db.JsonB
+  escalationChain Json @map("escalation_chain") @db.JsonB
+
+  priority Int     @default(100) @db.SmallInt
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive, triggerType])
+  @@map("escalation_rules")
+}
+
+// ============================================================
+// PATIENT SEGMENT
+// ============================================================
+
+model PatientSegment {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+
+  filterExpr Json @map("filter_expr") @db.JsonB
+
+  cachedCount     Int?      @map("cached_count")
+  lastRefreshedAt DateTime? @map("last_refreshed_at") @db.Timestamptz(6)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, name])
+  @@map("patient_segments")
+}
+
+// ============================================================
+// PADMA JOB (durable queue)
+// ============================================================
+
+model PadmaJob {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  jobType String @map("job_type") @db.VarChar(40)
+  // GENERATE_TASKS | SEND_REMINDER | ESCALATE_TASK | AUTO_COMPLETE_CHECK
+  // | EVALUATE_TRANSITIONS | SYNC_ATHMA | ADHERENCE_RECALC | STAGE_ENTRY_ACTIONS
+
+  patientId    String? @map("patient_id") @db.Uuid
+  enrollmentId String? @map("enrollment_id") @db.Uuid
+  taskId       String? @map("task_id") @db.Uuid
+
+  payload Json @db.JsonB
+
+  runAt  DateTime @map("run_at") @db.Timestamptz(6)
+  status String   @default("READY") @db.VarChar(10)
+  // READY | RUNNING | DONE | FAILED | SKIPPED | DEAD
+
+  attempts    Int @default(0) @db.SmallInt
+  maxAttempts Int @default(3) @map("max_attempts") @db.SmallInt
+
+  lockedAt DateTime? @map("locked_at") @db.Timestamptz(6)
+  lockedBy String?   @map("locked_by") @db.VarChar(100)
+
+  lastError String? @map("last_error") @db.Text
+
+  idempotencyKey String @map("idempotency_key") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, runAt], name: "idx_padma_jobs_ready")
+  @@map("padma_jobs")
+}
+
+// ============================================================
+// WEBHOOK EVENT (raw payload storage)
+// ============================================================
+
+model WebhookEvent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  source    String @db.VarChar(30)
+  // athma | salesforce | genesys
+  eventType String @map("event_type") @db.VarChar(100)
+
+  payload   Json     @db.JsonB
+  signature String?  @db.VarChar(255)
+  processed Boolean  @default(false)
+  error     String?  @db.Text
+
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  @@index([tenantId, source, receivedAt(sort: Desc)])
+  @@index([tenantId, processed, source])
+  @@map("webhook_events")
+}
+
