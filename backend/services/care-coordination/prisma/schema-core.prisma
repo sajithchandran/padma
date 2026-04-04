@@ -9,6 +9,182 @@ datasource db {
 }
 
 // ============================================================
+// ENUMS
+// ============================================================
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  OFFBOARDED
+
+  @@map("tenant_status")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_INVITE
+  DEACTIVATED
+
+  @@map("user_status")
+}
+
+// ============================================================
+// TENANT
+// ============================================================
+
+model Tenant {
+  id          String       @id @default(uuid()) @db.Uuid
+  slug        String       @unique @db.VarChar(100)
+  name        String       @db.VarChar(255)
+  displayName String?      @map("display_name") @db.VarChar(255)
+  status      TenantStatus @default(ACTIVE)
+  country     String       @db.VarChar(2)
+  timezone    String       @default("Asia/Dubai") @db.VarChar(50)
+  locale      String       @default("en") @db.VarChar(10)
+  planTier    String       @default("standard") @map("plan_tier") @db.VarChar(30)
+  // free | standard | enterprise
+  maxUsers    Int          @default(50) @map("max_users")
+  trialEndsAt  DateTime?   @map("trial_ends_at") @db.Timestamptz(6)
+  oidcIssuer   String?     @map("oidc_issuer") @db.VarChar(500)
+  oidcClientId String?     @map("oidc_client_id") @db.VarChar(255)
+  oidcAudience String?     @map("oidc_audience") @db.VarChar(255)
+  contactEmail String?     @map("contact_email") @db.VarChar(255)
+  featureFlags Json        @default("{}") @map("feature_flags") @db.JsonB
+  // e.g. {"engagement": true, "analytics": false, "ai_suggestions": true}
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users        UserTenantRole[]
+  roles        Role[]
+
+  @@index([status])
+  @@map("tenants")
+}
+
+// ============================================================
+// PERMISSION — atomic action on a resource
+// ============================================================
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(100)
+  // format: "resource:action"  e.g. "pathway:create", "task:complete"
+  resource    String   @db.VarChar(50)
+  // pathway | task | enrollment | patient | admin | communication | dashboard
+  action      String   @db.VarChar(50)
+  // create | read | update | delete | complete | skip | escalate | reassign | publish | anonymize | send | manage_templates | manage_users | manage_roles | manage_tenant
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  roles RolePermission[]
+
+  @@index([resource])
+  @@map("permissions")
+}
+
+// ============================================================
+// ROLE — named bundle of permissions
+// ============================================================
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  // null = system-wide role shared across all tenants (seeded)
+  // non-null = custom role created by a tenant admin
+  name        String   @db.VarChar(100)
+  code        String   @db.VarChar(100)
+  // system codes: admin | supervisor | care_coordinator | physician | nurse | viewer
+  description String?  @db.VarChar(255)
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  users       UserTenantRole[]
+
+  @@unique([tenantId, code], name: "uq_role_tenant_code")
+  @@index([isSystem, isActive])
+  @@map("roles")
+}
+
+// ============================================================
+// ROLE_PERMISSION — join: Role ↔ Permission
+// ============================================================
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  grantedAt    DateTime   @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// USER — local user record linked to OIDC identity
+// ============================================================
+
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  oidcSub       String     @unique @map("oidc_sub") @db.VarChar(255)
+  // "sub" claim from JWT — stable external identity key
+  email         String     @db.VarChar(255)
+  emailVerified Boolean    @default(false) @map("email_verified")
+  firstName     String?    @map("first_name") @db.VarChar(100)
+  lastName      String?    @map("last_name") @db.VarChar(100)
+  displayName   String?    @map("display_name") @db.VarChar(255)
+  avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
+  phoneNumber   String?    @map("phone_number") @db.VarChar(30)
+  status        UserStatus @default(ACTIVE)
+  timezone      String     @default("Asia/Dubai") @db.VarChar(50)
+  locale        String     @default("en") @db.VarChar(10)
+  lastLoginAt   DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  lastLoginIp   String?    @map("last_login_ip") @db.VarChar(45)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenantRoles UserTenantRole[]
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+// ============================================================
+// USER_TENANT_ROLE — join: User ↔ Tenant ↔ Role
+// ============================================================
+
+model UserTenantRole {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  isActive     Boolean   @default(true) @map("is_active")
+  facilityId   String?   @map("facility_id") @db.Uuid
+  facilityName String?   @map("facility_name") @db.VarChar(255)
+  grantedBy    String?   @map("granted_by") @db.Uuid
+  // loose UUID reference to users.id — no FK to avoid bootstrap chicken-and-egg
+  grantedAt    DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, tenantId], name: "uq_user_tenant_role")
+  @@index([tenantId, roleId, isActive])
+  @@index([userId, isActive])
+  @@map("user_tenant_roles")
+}
+
+// ============================================================
 // CLINICAL PATHWAY (top-level evidence-based protocol)
 // ============================================================
 

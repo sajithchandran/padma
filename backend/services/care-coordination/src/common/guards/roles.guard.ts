@@ -19,10 +19,11 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const tenantContext = request.tenantContext;
 
-    if (!tenantContext?.roles) {
+    if (!tenantContext?.roleCode) {
       return false;
     }
 
-    return requiredRoles.some((role) => tenantContext.roles.includes(role));
+    // Match against role code (e.g. "admin", "supervisor", "care_coordinator")
+    return requiredRoles.some((role) => role === tenantContext.roleCode);
   }
 }

@@ -1,10 +1,13 @@
 services:
+
+  # ─── Infrastructure ───────────────────────────────────────────────────────
+
   postgres:
     image: postgres:16-alpine
     container_name: padma-postgres
     restart: unless-stopped
     ports:
-      - '5433:5432'
+      - '5433:5432'            # External 5433 avoids conflict with local Postgres
     environment:
       POSTGRES_USER: padma
       POSTGRES_PASSWORD: padma_dev_secret
@@ -23,7 +26,7 @@ services:
     container_name: padma-redis
     restart: unless-stopped
     ports:
-      - '6380:6379'
+      - '6380:6379'            # External 6380 avoids conflict with local Redis
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
@@ -47,6 +50,79 @@ services:
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
     depends_on:
       postgres:
+        condition: service_healthy
+
+  # ─── Backend (NestJS — Care Coordination API) ─────────────────────────────
+
+  backend:
+    build:
+      context: ./backend/services/care-coordination
+      dockerfile: Dockerfile
+    image: padma-backend:latest
+    container_name: padma-backend
+    restart: unless-stopped
+    ports:
+      - '3020:3020'
+    environment:
+      NODE_ENV: production
+      PORT: 3020
+
+      # Database — use Docker service hostnames (not localhost)
+      DATABASE_CORE_URL: postgresql://padma:padma_dev_secret@postgres:5432/padma_core?schema=public
+      DATABASE_ENGAGEMENT_URL: postgresql://padma:padma_dev_secret@postgres:5432/padma_engagement?schema=public
+
+      # Redis — use Docker service hostname
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # Auth
+      JWT_PUBLIC_KEY: ''
+      JWT_ISSUER: https://auth.padma.local
+
+      # Webhook security
+      ATHMA_WEBHOOK_SECRET: dev-athma-webhook-secret
+
+      # External integration base URLs
+      ATHMA_BASE_URL: http://localhost:3030/api/v1
+      MEDHA_BASE_URL: http://localhost:3040/api/v1
+      GENESYS_BASE_URL: http://localhost:3050/api/v1
+      SALESFORCE_BASE_URL: http://localhost:3060/api/v1
+      ZEAL_BASE_URL: http://localhost:3010/api/v1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3020/api/v1/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─── Frontend (Next.js 14 — Care Coordination UI) ─────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Passed at build time so Next.js rewrites know where to proxy /api/*
+        BACKEND_INTERNAL_URL: http://backend:3020
+    image: padma-frontend:latest
+    container_name: padma-frontend
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      # Used at runtime by Next.js standalone server for API rewrites
+      BACKEND_INTERNAL_URL: http://backend:3020
+      NEXT_PUBLIC_API_BASE: /api/v1
+    depends_on:
+      backend:
         condition: service_healthy
 
 volumes:

@@ -18,11 +18,16 @@ async function bootstrap() {
   // Security middleware
   app.use(helmet());
 
-  // CORS
+  // CORS — allow requests from Next.js frontend (local dev + Docker)
+  const frontendOrigins = [
+    'http://localhost:3000',
+    'http://padma-frontend:3000',
+    ...(process.env.FRONTEND_ORIGIN ? [process.env.FRONTEND_ORIGIN] : []),
+  ];
   app.enableCors({
     origin: configService.get<string>('app.nodeEnv') === 'development'
       ? true
-      : [],
+      : frontendOrigins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: [
       'Content-Type',
@@ -55,21 +60,27 @@ async function bootstrap() {
   // Audit logging
   app.useGlobalInterceptors(new AuditLogInterceptor());
 
-  // Swagger (dev only)
-  if (configService.get<string>('app.nodeEnv') !== 'production') {
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle('Padma Care Coordination API')
-      .setDescription('Clinical Pathway & Care Coordination Platform')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .addApiKey(
-        { type: 'apiKey', name: 'x-tenant-id', in: 'header' },
-        'tenant-id',
-      )
-      .build();
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('api/docs', app, document);
-  }
+  // Swagger — always enabled (API docs accessible in all environments)
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Padma Care Coordination API')
+    .setDescription('Clinical Pathway & Care Coordination Platform')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .addApiKey(
+      { type: 'apiKey', name: 'x-tenant-id', in: 'header' },
+      'tenant-id',
+    )
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
+
+  // Root redirect → API docs
+  // Must use the underlying HTTP adapter directly because NestJS global prefix
+  // means no @Controller can handle '/' without opting out of the prefix.
+  const httpAdapter = app.getHttpAdapter();
+  httpAdapter.get('/', (_req, res) => {
+    res.redirect('/api/docs');
+  });
 
   await app.listen(port);
   console.log(`Padma Care Coordination running on port ${port}`);

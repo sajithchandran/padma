@@ -10,7 +10,7 @@ import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import { ManualTransitionDto } from './dto/transition.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { StageManagerService } from './stage-manager.service';
-import { Prisma } from '../../node_modules/.prisma/client-core';
+import { Prisma } from '.prisma/client-core';
 
 @Injectable()
 export class EnrollmentService {

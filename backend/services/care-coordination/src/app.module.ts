@@ -22,6 +22,10 @@ import { PrivacyModule } from './privacy/privacy.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReminderSchedulerModule } from './reminders/reminder-scheduler.module';
 import { EscalationModule } from './escalation/escalation.module';
+import { UsersModule } from './users/users.module';
+import { TenantsModule } from './tenants/tenants.module';
+import { RolesModule } from './roles/roles.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -46,6 +50,10 @@ import { EscalationModule } from './escalation/escalation.module';
     DashboardModule,
     ReminderSchedulerModule,
     EscalationModule,
+    UsersModule,
+    TenantsModule,
+    RolesModule,
+    HealthModule,
   ],
 })
 export class AppModule implements NestModule {

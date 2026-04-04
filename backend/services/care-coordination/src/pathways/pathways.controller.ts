@@ -37,7 +37,7 @@ export class PathwaysController {
   ) {}
 
   @Post()
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Create a clinical pathway' })
   create(@Tenant() tenant: TenantContext, @Body() dto: CreatePathwayDto) {
     return this.pathwaysService.create(tenant.tenantId, tenant.userId, dto);
@@ -63,7 +63,7 @@ export class PathwaysController {
   }
 
   @Put(':id')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Update a clinical pathway' })
   update(
     @Tenant() tenant: TenantContext,
@@ -74,14 +74,14 @@ export class PathwaysController {
   }
 
   @Post(':id/publish')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Publish a pathway (set status to active)' })
   publish(@Tenant() tenant: TenantContext, @Param('id', ParseUUIDPipe) id: string) {
     return this.pathwaysService.publish(tenant.tenantId, id, tenant.userId);
   }
 
   @Post(':id/clone')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Clone a pathway with incremented version' })
   clone(@Tenant() tenant: TenantContext, @Param('id', ParseUUIDPipe) id: string) {
     return this.pathwaysService.clone(tenant.tenantId, id, tenant.userId);
@@ -90,7 +90,7 @@ export class PathwaysController {
   // --- Stages ---
 
   @Post(':pathwayId/stages')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Add a stage to a pathway' })
   createStage(
     @Tenant() tenant: TenantContext,
@@ -101,7 +101,7 @@ export class PathwaysController {
   }
 
   @Put(':pathwayId/stages/:stageId')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Update a stage' })
   updateStage(
     @Tenant() tenant: TenantContext,
@@ -113,7 +113,7 @@ export class PathwaysController {
   }
 
   @Delete(':pathwayId/stages/:stageId')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Delete a stage' })
   removeStage(
     @Tenant() tenant: TenantContext,
@@ -126,7 +126,7 @@ export class PathwaysController {
   // --- Interventions ---
 
   @Post('stages/:stageId/interventions')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Add an intervention template to a stage' })
   createIntervention(
     @Tenant() tenant: TenantContext,
@@ -137,7 +137,7 @@ export class PathwaysController {
   }
 
   @Put('interventions/:id')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Update an intervention template' })
   updateIntervention(
     @Tenant() tenant: TenantContext,
@@ -148,7 +148,7 @@ export class PathwaysController {
   }
 
   @Delete('interventions/:id')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Delete an intervention template' })
   removeIntervention(
     @Tenant() tenant: TenantContext,
@@ -160,7 +160,7 @@ export class PathwaysController {
   // --- Transitions ---
 
   @Post(':pathwayId/transitions')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Add a transition rule to a pathway' })
   createTransition(
     @Tenant() tenant: TenantContext,
@@ -171,7 +171,7 @@ export class PathwaysController {
   }
 
   @Put('transitions/:id')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Update a transition rule' })
   updateTransition(
     @Tenant() tenant: TenantContext,
@@ -182,7 +182,7 @@ export class PathwaysController {
   }
 
   @Delete('transitions/:id')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Delete a transition rule' })
   removeTransition(
     @Tenant() tenant: TenantContext,

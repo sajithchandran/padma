@@ -46,7 +46,7 @@ export class TemplatesController {
   }
 
   @Post()
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Create a new communication template (starts in draft status)' })
   create(
     @Tenant() tenant: TenantContext,
@@ -66,7 +66,7 @@ export class TemplatesController {
   }
 
   @Post(':id/approve')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Approve a communication template (admin only)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({ schema: { type: 'object' } })

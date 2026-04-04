@@ -50,7 +50,7 @@ export class EscalationController {
   }
 
   @Post()
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Create a new escalation rule (admin only)' })
   create(
     @Tenant() tenant: TenantContext,
@@ -70,7 +70,7 @@ export class EscalationController {
   }
 
   @Put(':id')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Update an escalation rule (admin only)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   update(
@@ -87,7 +87,7 @@ export class EscalationController {
   }
 
   @Delete(':id')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Soft-delete an escalation rule by setting isActive=false (admin only)' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })

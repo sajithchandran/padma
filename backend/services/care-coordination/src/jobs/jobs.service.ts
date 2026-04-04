@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '../../node_modules/.prisma/client-core';
+import { Prisma } from '.prisma/client-core';
 import { PrismaCoreService } from '../database/prisma-core.service';
 import { v4 as uuidv4 } from 'uuid';
 

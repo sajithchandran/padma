@@ -7,7 +7,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { Prisma } from '../../../node_modules/.prisma/client-core';
+import { Prisma } from '.prisma/client-core';
 import { WebhookSignatureGuard } from '../../common/guards/webhook-signature.guard';
 import { PrismaCoreService } from '../../database/prisma-core.service';
 import { AthmaWebhookHandlerService } from './athma-webhook-handler.service';

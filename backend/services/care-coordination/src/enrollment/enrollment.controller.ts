@@ -26,7 +26,7 @@ export class EnrollmentController {
   constructor(private readonly enrollmentService: EnrollmentService) {}
 
   @Post('patients/:patientId/enroll')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Enroll a patient into a clinical pathway' })
   @ApiParam({ name: 'patientId', type: 'string', format: 'uuid' })
   enroll(
@@ -87,7 +87,7 @@ export class EnrollmentController {
   }
 
   @Put('enrollments/:id')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Update enrollment fields' })
   update(
     @Tenant() tenant: TenantContext,
@@ -103,7 +103,7 @@ export class EnrollmentController {
   }
 
   @Post('enrollments/:id/pause')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Pause an active enrollment' })
   pause(
     @Tenant() tenant: TenantContext,
@@ -113,7 +113,7 @@ export class EnrollmentController {
   }
 
   @Post('enrollments/:id/resume')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Resume a paused enrollment' })
   resume(
     @Tenant() tenant: TenantContext,
@@ -123,7 +123,7 @@ export class EnrollmentController {
   }
 
   @Post('enrollments/:id/cancel')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Cancel an enrollment' })
   cancel(
     @Tenant() tenant: TenantContext,
@@ -139,7 +139,7 @@ export class EnrollmentController {
   }
 
   @Post('enrollments/:id/transition')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Manually transition enrollment to a different stage' })
   manualTransition(
     @Tenant() tenant: TenantContext,

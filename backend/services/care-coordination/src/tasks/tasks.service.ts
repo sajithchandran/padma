@@ -4,7 +4,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { Prisma } from '../../node_modules/.prisma/client-core';
+import { Prisma } from '.prisma/client-core';
 import { PrismaCoreService } from '../database/prisma-core.service';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';

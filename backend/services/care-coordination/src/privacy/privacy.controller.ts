@@ -35,7 +35,7 @@ export class PrivacyController {
   // ── DSAR ────────────────────────────────────────────────────────────────
 
   @Get('dsar/:patientId')
-  @Roles('admin', 'clinical_admin')
+  @Roles('admin', 'supervisor')
   @ApiOperation({ summary: 'Generate a GDPR Data Subject Access Request export (admin only)' })
   @ApiParam({ name: 'patientId', type: 'string', format: 'uuid' })
   generateDsar(

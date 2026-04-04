@@ -127,7 +127,7 @@ export class TasksController {
   // PUT /tasks/:id/status — update status
   // -----------------------------------------------------------------------
   @Put('tasks/:id/status')
-  @Roles('admin', 'clinical_admin', 'coordinator', 'nurse')
+  @Roles('admin', 'supervisor', 'care_coordinator', 'nurse')
   @ApiOperation({ summary: 'Update task status' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   updateStatus(
@@ -163,7 +163,7 @@ export class TasksController {
   // POST /tasks/:id/complete — complete with notes/evidence
   // -----------------------------------------------------------------------
   @Post('tasks/:id/complete')
-  @Roles('admin', 'clinical_admin', 'coordinator', 'nurse')
+  @Roles('admin', 'supervisor', 'care_coordinator', 'nurse')
   @ApiOperation({ summary: 'Complete a task with notes and evidence' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({
@@ -193,7 +193,7 @@ export class TasksController {
   // POST /tasks/:id/skip — skip with reason
   // -----------------------------------------------------------------------
   @Post('tasks/:id/skip')
-  @Roles('admin', 'clinical_admin', 'coordinator', 'nurse')
+  @Roles('admin', 'supervisor', 'care_coordinator', 'nurse')
   @ApiOperation({ summary: 'Skip a task with a reason' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({
@@ -215,7 +215,7 @@ export class TasksController {
   // POST /tasks/:id/escalate — manual escalation
   // -----------------------------------------------------------------------
   @Post('tasks/:id/escalate')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Manually escalate a task' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   escalate(
@@ -229,7 +229,7 @@ export class TasksController {
   // POST /tasks/:id/reassign — reassign
   // -----------------------------------------------------------------------
   @Post('tasks/:id/reassign')
-  @Roles('admin', 'clinical_admin', 'coordinator')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Reassign a task to a different user or role' })
   @ApiParam({ name: 'id', type: 'string', format: 'uuid' })
   @ApiBody({

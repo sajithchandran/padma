@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Dev & test files
+test
+coverage
+*.spec.ts
+*.e2e-spec.ts
+
+# Local environment
+.env
+.env.local
+.env.development
+
+# IDE
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Prisma — keep schema + migrations, exclude generated client (rebuilt in Docker)
+node_modules/.prisma

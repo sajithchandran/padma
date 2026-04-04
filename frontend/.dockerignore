@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build output
+.next
+out
+
+# Environment files (injected at runtime via docker-compose)
+.env
+.env.local
+.env.development
+.env.production
+
+# Dev / test
+*.spec.ts
+*.test.ts
+coverage
+
+# IDE & OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
