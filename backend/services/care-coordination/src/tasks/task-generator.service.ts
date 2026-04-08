@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 
 interface RecurrenceParams {
   frequencyType: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'custom_days';
@@ -13,7 +13,7 @@ interface RecurrenceParams {
 export class TaskGeneratorService {
   private readonly logger = new Logger(TaskGeneratorService.name);
 
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Generates CareTask records for all matching interventions in a stage

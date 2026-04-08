@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(tenantId: string) {
     // Return system roles + this tenant's custom roles

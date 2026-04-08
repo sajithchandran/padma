@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaCoreService } from '../../database/prisma-core.service';
+import { PrismaService } from '../../database/prisma.service';
 import { ClinicalDataService } from '../../pathway-engine/clinical-data.service';
 import { TasksService } from '../../tasks/tasks.service';
 import { JobsService } from '../../jobs/jobs.service';
@@ -10,7 +10,7 @@ export class AthmaWebhookHandlerService {
   private readonly logger = new Logger(AthmaWebhookHandlerService.name);
 
   constructor(
-    private readonly prisma: PrismaCoreService,
+    private readonly prisma: PrismaService,
     private readonly clinicalDataService: ClinicalDataService,
     private readonly tasksService: TasksService,
     private readonly jobsService: JobsService,

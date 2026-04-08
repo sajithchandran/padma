@@ -1,0 +1,146 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.prod.yml  — FULL PRODUCTION STACK
+#
+# Runs everything: Postgres, Redis, pgAdmin, Backend (NestJS), Frontend (Next.js)
+# All services communicate over the internal Docker network.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml down
+#   docker compose -f docker-compose.prod.yml logs -f backend
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ─── PostgreSQL ────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: padma-postgres
+    restart: unless-stopped
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: padma
+      POSTGRES_PASSWORD: padma_dev_secret
+      POSTGRES_DB: padma_core
+    volumes:
+      - padma_pgdata:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U padma']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ─────────────────────────────────────────────────────────────────
+
+  redis:
+    image: redis:7-alpine
+    container_name: padma-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── pgAdmin (DB GUI) ──────────────────────────────────────────────────────
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: padma-pgadmin
+    restart: unless-stopped
+    ports:
+      - '8081:80'
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@padma.dev
+      PGADMIN_DEFAULT_PASSWORD: padma_admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - padma_pgadmin:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ─── Backend (NestJS — Care Coordination API) ─────────────────────────────
+
+  backend:
+    build:
+      # Context is the workspace root so all services share one node_modules layer
+      context: ./backend
+      dockerfile: services/care-coordination/Dockerfile
+    image: padma-backend:latest
+    container_name: padma-backend
+    restart: unless-stopped
+    ports:
+      - '3020:3020'
+    environment:
+      NODE_ENV: production
+      PORT: 3020
+
+      # Database — internal Docker hostnames (not localhost)
+      DATABASE_URL: postgresql://padma:padma_dev_secret@postgres:5432/padma_prod?schema=public
+
+      # Redis — internal Docker hostname
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+      # Auth
+      JWT_PUBLIC_KEY: ''
+      JWT_ISSUER: https://auth.padma.local
+      JWT_SECRET: padma-dev-secret-CHANGE-IN-PRODUCTION
+
+      # Webhook security
+      ATHMA_WEBHOOK_SECRET: dev-athma-webhook-secret
+
+      # External integration base URLs
+      ATHMA_BASE_URL: http://localhost:3030/api/v1
+      MEDHA_BASE_URL: http://localhost:3040/api/v1
+      GENESYS_BASE_URL: http://localhost:3050/api/v1
+      SALESFORCE_BASE_URL: http://localhost:3060/api/v1
+      ZEAL_BASE_URL: http://localhost:3010/api/v1
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3020/api/v1/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─── Frontend (Next.js — Care Coordination UI) ────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_INTERNAL_URL: http://backend:3020
+    image: padma-frontend:latest
+    container_name: padma-frontend
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      BACKEND_INTERNAL_URL: http://backend:3020
+      NEXT_PUBLIC_API_BASE: /api/v1
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  padma_pgdata:
+  padma_pgadmin:

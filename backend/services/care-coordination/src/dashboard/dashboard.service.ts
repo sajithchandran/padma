@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
 
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getSummary(tenantId: string, userId: string) {
     const today = new Date();

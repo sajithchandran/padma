@@ -3,7 +3,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaEngagementService } from '../../database/prisma-engagement.service';
+import { PrismaService } from '../../database/prisma.service';
 import { CreateTemplateDto } from '../dto/create-template.dto';
 
 export interface TemplateFilters {
@@ -16,7 +16,7 @@ export interface TemplateFilters {
 export class TemplatesService {
   private readonly logger = new Logger(TemplatesService.name);
 
-  constructor(private readonly prismaEngagement: PrismaEngagementService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Create a new template in draft status with version 1.
@@ -27,7 +27,7 @@ export class TemplatesService {
     dto: CreateTemplateDto,
   ) {
     // Determine the next version number for this code+channel+language combination
-    const existing = await this.prismaEngagement.communicationTemplate.findMany({
+    const existing = await this.prisma.communicationTemplate.findMany({
       where: {
         tenantId,
         code: dto.code,
@@ -41,7 +41,7 @@ export class TemplatesService {
 
     const nextVersion = existing.length > 0 ? existing[0].version + 1 : 1;
 
-    return this.prismaEngagement.communicationTemplate.create({
+    return this.prisma.communicationTemplate.create({
       data: {
         tenantId,
         code: dto.code,
@@ -68,7 +68,7 @@ export class TemplatesService {
     if (filters.category) where.category = filters.category;
     if (filters.status) where.status = filters.status;
 
-    return this.prismaEngagement.communicationTemplate.findMany({
+    return this.prisma.communicationTemplate.findMany({
       where,
       orderBy: [{ code: 'asc' }, { version: 'desc' }],
     });
@@ -78,7 +78,7 @@ export class TemplatesService {
    * Get a single template by id.
    */
   async findOne(tenantId: string, id: string) {
-    const template = await this.prismaEngagement.communicationTemplate.findFirst({
+    const template = await this.prisma.communicationTemplate.findFirst({
       where: { id, tenantId },
     });
 
@@ -95,7 +95,7 @@ export class TemplatesService {
   async approve(tenantId: string, id: string, userId: string) {
     await this.findOne(tenantId, id);
 
-    return this.prismaEngagement.communicationTemplate.update({
+    return this.prisma.communicationTemplate.update({
       where: { id },
       data: {
         status: 'approved',
@@ -115,7 +115,7 @@ export class TemplatesService {
     channel: string,
     language: string,
   ) {
-    const template = await this.prismaEngagement.communicationTemplate.findFirst({
+    const template = await this.prisma.communicationTemplate.findFirst({
       where: {
         tenantId,
         code,

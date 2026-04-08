@@ -26,6 +26,9 @@ import { UsersModule } from './users/users.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { RolesModule } from './roles/roles.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
+import { CareTeamModule } from './care-team/care-team.module';
+import { PatientsModule } from './patients/patients.module';
 
 @Module({
   imports: [
@@ -39,6 +42,7 @@ import { HealthModule } from './health/health.module';
     ]),
     ScheduleModule.forRoot(),
     DatabaseModule,
+    AuthModule,        // ← Auth module (login/logout) — excluded from TenantMiddleware below
     PathwaysModule,
     EnrollmentModule,
     PathwayEngineModule,
@@ -53,6 +57,8 @@ import { HealthModule } from './health/health.module';
     UsersModule,
     TenantsModule,
     RolesModule,
+    CareTeamModule,
+    PatientsModule,
     HealthModule,
   ],
 })
@@ -60,7 +66,11 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenantMiddleware)
-      .exclude('health', 'webhooks/(.*)')
+      .exclude(
+        'health',           // GET /api/v1/health
+        'webhooks/(.*)',    // POST /api/v1/webhooks/*
+        'auth/(.*)',        // POST /api/v1/auth/login, /logout, GET /auth/me
+      )
       .forRoutes('*');
   }
 }

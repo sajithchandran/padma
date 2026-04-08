@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { PrismaCoreService } from '../database/prisma-core.service';
-import { PrismaEngagementService } from '../database/prisma-engagement.service';
+import { PrismaService } from '../database/prisma.service';
 import { DsarResponseDto } from './dto/dsar.dto';
 
 @Injectable()
@@ -9,8 +8,7 @@ export class PrivacyService {
   private readonly logger = new Logger(PrivacyService.name);
 
   constructor(
-    private readonly prismaCore: PrismaCoreService,
-    private readonly prismaEngagement: PrismaEngagementService,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -24,7 +22,7 @@ export class PrivacyService {
     patientId: string,
   ): Promise<DsarResponseDto> {
     const [enrollments, tasks, messages, consents] = await Promise.all([
-      this.prismaCore.patientPathwayEnrollment.findMany({
+      this.prisma.patientPathwayEnrollment.findMany({
         where: { tenantId, patientId },
         include: {
           stageHistory: {
@@ -41,7 +39,7 @@ export class PrivacyService {
         },
         orderBy: { createdAt: 'asc' },
       }),
-      this.prismaCore.careTask.findMany({
+      this.prisma.careTask.findMany({
         where: { tenantId, patientId },
         include: {
           interventionTemplate: {
@@ -50,7 +48,7 @@ export class PrivacyService {
         },
         orderBy: { dueDate: 'asc' },
       }),
-      this.prismaEngagement.patientMessage.findMany({
+      this.prisma.patientMessage.findMany({
         where: { tenantId, patientId },
         select: {
           id: true,
@@ -62,7 +60,7 @@ export class PrivacyService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prismaEngagement.patientConsent.findMany({
+      this.prisma.patientConsent.findMany({
         where: { tenantId, patientId },
         orderBy: { createdAt: 'asc' },
       }),
@@ -136,7 +134,7 @@ export class PrivacyService {
     );
 
     // Step 1: Anonymise PatientPathwayEnrollment PII — retain for audit
-    await this.prismaCore.patientPathwayEnrollment.updateMany({
+    await this.prisma.patientPathwayEnrollment.updateMany({
       where: { tenantId, patientId },
       data: {
         patientDisplayName: null,
@@ -147,7 +145,7 @@ export class PrivacyService {
     });
 
     // Step 2: Anonymise CareTask PII — retain for audit
-    await this.prismaCore.careTask.updateMany({
+    await this.prisma.careTask.updateMany({
       where: { tenantId, patientId },
       data: {
         patientDisplayName: null,
@@ -156,17 +154,17 @@ export class PrivacyService {
     });
 
     // Step 3: Delete PatientPreference
-    await this.prismaEngagement.patientPreference.deleteMany({
+    await this.prisma.patientPreference.deleteMany({
       where: { tenantId, patientId },
     });
 
     // Step 4: Delete PatientConsent
-    await this.prismaEngagement.patientConsent.deleteMany({
+    await this.prisma.patientConsent.deleteMany({
       where: { tenantId, patientId },
     });
 
     // Step 5: Delete PatientMessage
-    await this.prismaEngagement.patientMessage.deleteMany({
+    await this.prisma.patientMessage.deleteMany({
       where: { tenantId, patientId },
     });
 

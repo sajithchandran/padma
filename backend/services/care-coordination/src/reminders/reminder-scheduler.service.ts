@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { JobsService } from '../jobs/jobs.service';
 
 interface ReminderTask {
@@ -19,7 +19,7 @@ export class ReminderSchedulerService {
   private isRunning = false;
 
   constructor(
-    private readonly prisma: PrismaCoreService,
+    private readonly prisma: PrismaService,
     private readonly jobsService: JobsService,
   ) {}
 

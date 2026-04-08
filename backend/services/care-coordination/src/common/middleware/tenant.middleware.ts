@@ -1,7 +1,7 @@
 import { Injectable, NestMiddleware, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { TenantContext } from '../decorators/tenant.decorator';
-import { PrismaCoreService } from '../../database/prisma-core.service';
+import { PrismaService } from '../../database/prisma.service';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,9 +20,20 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  */
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async use(req: Request, _res: Response, next: NextFunction) {
+    // Skip middleware for public routes (auth endpoints, health, webhooks).
+    // NestJS .exclude() patterns can be unreliable with global prefixes,
+    // so we guard here explicitly against the full URL path.
+    const url = req.originalUrl ?? req.url ?? '';
+    const isPublicPath =
+      url.includes('/auth/') ||
+      url.includes('/health') ||
+      url.includes('/webhooks/');
+
+    if (isPublicPath) return next();
+
     const isProduction = process.env.NODE_ENV === 'production';
 
     if (!isProduction) {

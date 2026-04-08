@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '.prisma/client-core';
-import { PrismaCoreService } from '../database';
+import { PrismaService } from '../database';
 
 export interface AthmaLabResultEvent {
   testCode: string;
@@ -23,7 +23,7 @@ const LAB_CODE_TO_CLINICAL_KEY: Record<string, string> = {
 
 @Injectable()
 export class ClinicalDataService {
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async get(tenantId: string, enrollmentId: string): Promise<Record<string, unknown>> {
     const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({

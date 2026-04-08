@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '.prisma/client-core';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface EnqueueOptions {
@@ -16,7 +16,7 @@ export interface EnqueueOptions {
 export class JobsService {
   private readonly logger = new Logger(JobsService.name);
 
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Enqueue a new job. Uses upsert on (tenantId, idempotencyKey) to prevent

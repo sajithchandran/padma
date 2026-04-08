@@ -1,12 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Globe, Clock, Shield, Zap, Save, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardSubtitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { MOCK_TENANT } from '@/lib/mock-data';
+import {
+  fetchCurrentTenant,
+  fetchTenantFeatureFlags,
+  updateCurrentTenant,
+} from '@/services/tenants.service';
 
 interface FeatureFlag {
   key: string;
@@ -25,18 +30,87 @@ const INITIAL_FLAGS: FeatureFlag[] = [
 ];
 
 export default function SettingsPage() {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<'general' | 'features' | 'security'>('general');
-  const [flags, setFlags] = useState<FeatureFlag[]>(INITIAL_FLAGS);
+  const [flags, setFlags] = useState<FeatureFlag[]>([]);
   const [saved, setSaved] = useState(false);
+  const [generalForm, setGeneralForm] = useState({
+    name: '',
+    displayName: '',
+    timezone: '',
+    locale: '',
+    contactEmail: '',
+  });
 
-  function toggleFlag(key: string) {
-    setFlags((prev) => prev.map((f) => f.key === key ? { ...f, enabled: !f.enabled } : f));
+  const { data: tenant, isLoading, isError, error } = useQuery({
+    queryKey: ['tenant-settings'],
+    queryFn: fetchCurrentTenant,
+  });
+  const {
+    data: featureFlags = {},
+    isLoading: flagsLoading,
+    isError: flagsError,
+  } = useQuery({
+    queryKey: ['tenant-feature-flags'],
+    queryFn: fetchTenantFeatureFlags,
+  });
+
+  useEffect(() => {
+    if (!tenant) return;
+    setGeneralForm({
+      name: tenant.name ?? '',
+      displayName: tenant.displayName ?? '',
+      timezone: tenant.timezone ?? '',
+      locale: tenant.locale ?? '',
+      contactEmail: tenant.contactEmail ?? '',
+    });
+  }, [tenant]);
+
+  useEffect(() => {
+    setFlags(INITIAL_FLAGS.map((flag) => ({
+      ...flag,
+      enabled: Boolean(featureFlags[flag.key]),
+    })));
+  }, [featureFlags]);
+
+  const generalMutation = useMutation({
+    mutationFn: () => updateCurrentTenant({
+      name: generalForm.name.trim() || undefined,
+      displayName: generalForm.displayName.trim() || undefined,
+      timezone: generalForm.timezone.trim() || undefined,
+      locale: generalForm.locale.trim() || undefined,
+      contactEmail: generalForm.contactEmail.trim() || undefined,
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['tenant-settings'] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    },
+  });
+
+  const enabledCount = useMemo(() => flags.filter((f) => f.enabled).length, [flags]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-5 max-w-3xl">
+        <Card className="p-8">
+          <p className="text-sm text-slate-500">Loading tenant settings from the backend…</p>
+        </Card>
+      </div>
+    );
   }
 
-  async function handleSave() {
-    await new Promise((r) => setTimeout(r, 600));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  if (isError || !tenant) {
+    return (
+      <div className="space-y-5 max-w-3xl">
+        <Card className="p-8">
+          <p className="text-sm font-medium text-red-700">Unable to load tenant settings.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {error instanceof Error ? error.message : 'The tenant settings API request failed.'}
+          </p>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -49,10 +123,10 @@ export default function SettingsPage() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-900 text-lg">{MOCK_TENANT.name}</h2>
-              <Badge variant="active" dot>Active</Badge>
+              <h2 className="font-bold text-slate-900 text-lg">{tenant.displayName || tenant.name}</h2>
+              <Badge variant={tenant.status === 'ACTIVE' ? 'active' : 'warning'} dot>{tenant.status}</Badge>
             </div>
-            <p className="text-sm text-slate-500">Tenant ID: <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">{MOCK_TENANT.id}</code></p>
+            <p className="text-sm text-slate-500">Tenant ID: <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded">{tenant.id}</code></p>
           </div>
           {saved && (
             <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium animate-fade-in">
@@ -85,41 +159,51 @@ export default function SettingsPage() {
               <CardSubtitle>Basic information about this tenant organisation</CardSubtitle>
             </CardHeader>
             <div className="space-y-4">
-              <Input label="Organisation Name" defaultValue={MOCK_TENANT.name} />
-              <Input label="Slug / Identifier" defaultValue={MOCK_TENANT.slug} hint="Used in API requests and URLs — cannot be changed after setup" />
+              <Input label="Organisation Name" value={generalForm.name} onChange={(e) => setGeneralForm((prev) => ({ ...prev, name: e.target.value }))} />
+              <Input label="Display Name" value={generalForm.displayName} onChange={(e) => setGeneralForm((prev) => ({ ...prev, displayName: e.target.value }))} hint="Optional branded display name used in the UI" />
+              <Input label="Slug / Identifier" value={tenant.slug} disabled hint="Used in API requests and URLs — cannot be changed after setup" />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Country" defaultValue={MOCK_TENANT.country} icon={<Globe className="h-4 w-4" />} />
-                <Input label="Timezone" defaultValue={MOCK_TENANT.timezone} icon={<Clock className="h-4 w-4" />} />
+                <Input label="Country" value={tenant.country} disabled icon={<Globe className="h-4 w-4" />} />
+                <Input label="Timezone" value={generalForm.timezone} onChange={(e) => setGeneralForm((prev) => ({ ...prev, timezone: e.target.value }))} icon={<Clock className="h-4 w-4" />} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Locale" value={generalForm.locale} onChange={(e) => setGeneralForm((prev) => ({ ...prev, locale: e.target.value }))} />
+                <Input label="Contact Email" type="email" value={generalForm.contactEmail} onChange={(e) => setGeneralForm((prev) => ({ ...prev, contactEmail: e.target.value }))} />
               </div>
             </div>
             <div className="mt-5 flex justify-end">
-              <Button onClick={handleSave} icon={<Save className="h-4 w-4" />}>Save Changes</Button>
+              <Button onClick={() => generalMutation.mutate()} loading={generalMutation.isPending} icon={<Save className="h-4 w-4" />}>Save Changes</Button>
             </div>
           </Card>
 
           <Card>
             <CardHeader>
               <CardTitle>Notification Defaults</CardTitle>
-              <CardSubtitle>Configure global notification thresholds for this tenant</CardSubtitle>
+              <CardSubtitle>Notification thresholds are not exposed by the current backend settings API.</CardSubtitle>
             </CardHeader>
             <div className="space-y-4">
-              <Input label="Task Overdue Alert (hours)" type="number" defaultValue="24" />
-              <Input label="High-Risk Patient Review Interval (days)" type="number" defaultValue="7" />
-              <Input label="Critical Patient Review Interval (days)" type="number" defaultValue="3" />
+              <Input label="Task Overdue Alert (hours)" type="number" defaultValue="24" disabled />
+              <Input label="High-Risk Patient Review Interval (days)" type="number" defaultValue="7" disabled />
+              <Input label="Critical Patient Review Interval (days)" type="number" defaultValue="3" disabled />
             </div>
             <div className="mt-5 flex justify-end">
-              <Button onClick={handleSave} icon={<Save className="h-4 w-4" />}>Save Changes</Button>
+              <Button variant="outline" disabled icon={<Save className="h-4 w-4" />}>Notification Updates Unavailable</Button>
             </div>
           </Card>
         </div>
       )}
 
       {tab === 'features' && (
-        <Card>
-          <CardHeader action={<Badge variant="info">{flags.filter((f) => f.enabled).length}/{flags.length} enabled</Badge>}>
-            <CardTitle>Feature Flags</CardTitle>
-            <CardSubtitle>Enable or disable platform features for this tenant. Changes take effect immediately.</CardSubtitle>
-          </CardHeader>
+          <Card>
+            <CardHeader action={<Badge variant="info">{enabledCount}/{flags.length} enabled</Badge>}>
+              <CardTitle>Feature Flags</CardTitle>
+              <CardSubtitle>Feature flags shown below are loaded from the backend. Updating them is not exposed by the current tenant API.</CardSubtitle>
+            </CardHeader>
+          {flagsLoading ? (
+            <div className="p-6 text-sm text-slate-500">Loading feature flags…</div>
+          ) : flagsError ? (
+            <div className="p-6 text-sm text-red-700">Unable to load feature flags from the backend.</div>
+          ) : (
           <div className="space-y-1">
             {flags.map((flag) => (
               <div key={flag.key}
@@ -133,9 +217,9 @@ export default function SettingsPage() {
                   <p className="text-xs text-slate-500 mt-0.5 ml-6">{flag.description}</p>
                 </div>
                 <button
-                  onClick={() => toggleFlag(flag.key)}
-                  className="flex-shrink-0 transition-opacity hover:opacity-80"
-                  title={flag.enabled ? 'Disable' : 'Enable'}
+                  className="flex-shrink-0 transition-opacity opacity-60 cursor-not-allowed"
+                  title="Read-only until a feature flag update API is available"
+                  disabled
                 >
                   {flag.enabled
                     ? <ToggleRight className="h-8 w-8 text-blue-500" />
@@ -144,8 +228,9 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
+          )}
           <div className="mt-4 flex justify-end">
-            <Button onClick={handleSave} icon={<Save className="h-4 w-4" />}>Save Feature Flags</Button>
+            <Button variant="outline" disabled icon={<Save className="h-4 w-4" />}>Feature Flag Updates Unavailable</Button>
           </div>
         </Card>
       )}
@@ -155,19 +240,19 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Authentication</CardTitle>
-              <CardSubtitle>OIDC/SSO configuration for this tenant</CardSubtitle>
+              <CardSubtitle>OIDC/SSO values are loaded from the tenant profile. Updating them is not exposed by the current tenant API.</CardSubtitle>
             </CardHeader>
             <div className="space-y-4">
-              <Input label="OIDC Issuer URL" placeholder="https://auth.yourorg.com" icon={<Shield className="h-4 w-4" />} />
-              <Input label="Client ID" placeholder="padma-prod-client" />
+              <Input label="OIDC Issuer URL" value={tenant.oidcIssuer ?? ''} placeholder="https://auth.yourorg.com" icon={<Shield className="h-4 w-4" />} disabled />
+              <Input label="Client ID" value={tenant.oidcClientId ?? ''} placeholder="padma-prod-client" disabled />
               <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200">
                 <Shield className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                <p className="text-xs text-amber-700">Client secret is stored encrypted. Leave blank to keep existing secret.</p>
+                <p className="text-xs text-amber-700">Client secret and SSO configuration updates are not exposed by the current backend settings API.</p>
               </div>
-              <Input label="Client Secret" type="password" placeholder="••••••••••••••••" />
+              <Input label="Client Secret" type="password" placeholder="••••••••••••••••" disabled />
             </div>
             <div className="mt-5 flex justify-end">
-              <Button onClick={handleSave} icon={<Save className="h-4 w-4" />}>Save Auth Config</Button>
+              <Button variant="outline" disabled icon={<Save className="h-4 w-4" />}>Auth Config Updates Unavailable</Button>
             </div>
           </Card>
 

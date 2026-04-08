@@ -46,7 +46,7 @@ export class TemplatesController {
   }
 
   @Post()
-  @Roles('admin', 'supervisor')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Create a new communication template (starts in draft status)' })
   create(
     @Tenant() tenant: TenantContext,

@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaCoreService } from '../database';
+import { PrismaService } from '../database';
 import { ConditionEvaluatorService } from './condition-evaluator.service';
 import { ClinicalDataService } from './clinical-data.service';
 
@@ -16,7 +16,7 @@ export class TransitionEvaluatorService {
   private readonly logger = new Logger(TransitionEvaluatorService.name);
 
   constructor(
-    private readonly prisma: PrismaCoreService,
+    private readonly prisma: PrismaService,
     private readonly conditionEvaluator: ConditionEvaluatorService,
     private readonly clinicalData: ClinicalDataService,
   ) {}

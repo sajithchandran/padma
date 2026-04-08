@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 
 @Injectable()
 export class TenantsService {
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findOne(tenantId: string) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });

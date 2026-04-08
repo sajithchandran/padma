@@ -32,9 +32,12 @@ export class CreateEnrollmentDto {
   @IsUUID()
   pathwayId: string;
 
-  @ApiProperty({ description: 'Patient ID' })
+  @ApiPropertyOptional({
+    description: 'Patient ID (UUID). If omitted a new UUID is auto-generated — useful when the patient does not yet exist in a master patient index.',
+  })
+  @IsOptional()
   @IsUUID()
-  patientId: string;
+  patientId?: string;
 
   @ApiPropertyOptional({ description: 'Snapshot of patient display name at enrollment time' })
   @IsOptional()

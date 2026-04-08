@@ -58,6 +58,7 @@ model Tenant {
 
   users        UserTenantRole[]
   roles        Role[]
+  careTeams    CareTeam[]
 
   @@index([status])
   @@map("tenants")
@@ -105,6 +106,7 @@ model Role {
   tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   permissions RolePermission[]
   users       UserTenantRole[]
+  careTeamMembers CareTeamMember[]
 
   @@unique([tenantId, code], name: "uq_role_tenant_code")
   @@index([isSystem, isActive])
@@ -151,6 +153,7 @@ model User {
   updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenantRoles UserTenantRole[]
+  careTeamMemberships CareTeamMember[]
 
   @@index([email])
   @@index([status])
@@ -182,6 +185,48 @@ model UserTenantRole {
   @@index([tenantId, roleId, isActive])
   @@index([userId, isActive])
   @@map("user_tenant_roles")
+}
+
+// ============================================================
+// CARE TEAM
+// ============================================================
+
+model CareTeam {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members CareTeamMember[]
+
+  @@unique([tenantId, name], name: "uq_care_team_tenant_name")
+  @@index([tenantId, isActive, name])
+  @@map("care_teams")
+}
+
+model CareTeamMember {
+  id         String   @id @default(uuid()) @db.Uuid
+  careTeamId String   @map("care_team_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  facilityId String?  @map("facility_id") @db.Uuid
+  addedAt    DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+  addedBy    String?  @map("added_by") @db.Uuid
+
+  careTeam CareTeam @relation(fields: [careTeamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role     @relation(fields: [roleId], references: [id])
+
+  @@unique([careTeamId, userId], name: "uq_care_team_member_user")
+  @@index([careTeamId, roleId])
+  @@index([userId])
+  @@map("care_team_members")
 }
 
 // ============================================================
@@ -679,4 +724,3 @@ model WebhookEvent {
   @@index([tenantId, processed, source])
   @@map("webhook_events")
 }
-

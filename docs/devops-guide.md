@@ -26,26 +26,43 @@
 
 ```
 padma/
-├── backend/
+├── backend/                          ← npm workspace root for all backend services
+│   ├── package.json                  ← workspace manifest  (workspaces: ["services/*"])
+│   ├── package-lock.json             ← single unified lock file for all services
+│   ├── node_modules/                 ← hoisted shared packages
 │   └── services/
-│       └── care-coordination/      # NestJS API (port 3020)
+│       └── care-coordination/        ← NestJS API  (name: @padma/care-coordination)
+│           ├── package.json
+│           ├── node_modules/         ← service-specific packages + generated Prisma clients
 │           ├── src/
+│           ├── dist/                 ← compiled output (git-ignored)
 │           ├── prisma/
 │           │   ├── schema-core.prisma
 │           │   └── schema-engagement.prisma
 │           ├── Dockerfile
 │           ├── docker-entrypoint.sh
 │           └── .env.example
-├── frontend/                       # Next.js 14 (port 3000)
+├── frontend/                         ← Next.js 14 (port 3000)
+│   ├── package.json
+│   ├── node_modules/
 │   ├── src/
 │   ├── Dockerfile
 │   └── .env.local.example
 ├── docs/
 ├── pgadmin/
 │   └── servers.json
-├── init-scripts/                   # PostgreSQL init SQL (runs once on first boot)
-└── docker-compose.yml
+├── init-scripts/                     ← PostgreSQL init SQL (runs once on first boot)
+├── docker-compose.yml          ← Infrastructure only (Postgres, Redis, pgAdmin)
+└── docker-compose.prod.yml     ← Full production stack (infra + backend + frontend)
 ```
+
+### npm Workspace Layout
+
+The backend uses **npm workspaces** rooted at `backend/`. This means:
+- One `package-lock.json` governs all backend services
+- Running `npm install` from `backend/` installs deps for every service under `services/`
+- Adding a new service (e.g. `services/care-routing/`) requires only adding its `package.json` — no separate installs
+- All workspace commands target a specific service via `--workspace=@padma/<service-name>`
 
 ### Service Communication
 
@@ -140,81 +157,85 @@ cp frontend/.env.local.example frontend/.env.local
 
 ---
 
-## 4. Running with Docker (Recommended)
+## 4. Docker — Infrastructure for Local Development
 
-All commands below are run from the **project root** (`padma/`).
+During **local development**, only infrastructure services (Postgres, Redis, pgAdmin) run in Docker.
+The backend and frontend run directly in your terminal for fast hot-reload.
 
-### 4.1 Start everything (first time or after code changes)
+All commands are run from the **project root** (`padma/`).
 
-```bash
-# Build images and start all services
-docker compose up --build
-```
-
-To run in the background (detached):
+### 4.1 Start infrastructure (daily dev workflow)
 
 ```bash
-docker compose up --build -d
-```
-
-### 4.2 Start without rebuilding (no code changes)
-
-```bash
+# Start Postgres, Redis and pgAdmin in the background
 docker compose up -d
 ```
 
-### 4.3 Start individual services
+That's it — your databases are ready. Now start the backend and frontend in separate terminals (see §5).
+
+### 4.2 Stop infrastructure
 
 ```bash
-# Infrastructure only
-docker compose up -d postgres redis pgadmin
-
-# Backend only (after infra is healthy)
-docker compose up -d backend
-
-# Frontend only (after backend is healthy)
-docker compose up -d frontend
-```
-
-### 4.4 Stop services
-
-```bash
-# Stop all, keep volumes (data preserved)
-docker compose stop
-
-# Stop and remove containers (data preserved in volumes)
+# Stop containers (volumes / data preserved)
 docker compose down
 
-# Stop, remove containers AND wipe all data volumes  ⚠️ destructive
+# Stop AND wipe all data  ⚠️ destructive — fresh DB on next start
 docker compose down -v
 ```
 
-### 4.5 Rebuild a single service
+### 4.3 Start/stop individual infra services
 
 ```bash
-# Rebuild and restart backend only
-docker compose build backend && docker compose up -d backend
-
-# Rebuild and restart frontend only
-docker compose build frontend && docker compose up -d frontend
+docker compose up -d postgres        # DB only
+docker compose up -d redis           # Cache only
+docker compose up -d pgadmin         # pgAdmin GUI only
+docker compose stop postgres         # Stop one service
 ```
 
-### 4.6 Restart a service (after config change)
-
-```bash
-docker compose restart backend
-docker compose restart frontend
-```
-
-### 4.7 View running service status
+### 4.4 View infra status
 
 ```bash
 docker compose ps
 ```
 
-### 4.8 Startup sequence
+### 4.5 Access points (infra only)
 
-Docker Compose enforces this startup order automatically via `depends_on` with `condition: service_healthy`:
+| Service | URL / Host | Credentials |
+|---------|-----------|-------------|
+| PostgreSQL | `localhost:5433` | `padma / padma_dev_secret` |
+| Redis | `localhost:6380` | _(no auth in dev)_ |
+| pgAdmin | http://localhost:8081 | `admin@padma.dev / padma_admin` |
+
+---
+
+## 4b. Docker — Full Production Stack
+
+The file `docker-compose.prod.yml` runs **everything** — infra + backend + frontend — as built Docker images.
+Use this for staging / production deployments.
+
+### Start the full stack
+
+```bash
+# Build images and start all services
+docker compose -f docker-compose.prod.yml up --build -d
+
+# View logs
+docker compose -f docker-compose.prod.yml logs -f
+
+# Stop everything
+docker compose -f docker-compose.prod.yml down
+```
+
+### Rebuild a single service
+
+```bash
+docker compose -f docker-compose.prod.yml build backend
+docker compose -f docker-compose.prod.yml up -d --no-deps backend
+```
+
+### Startup sequence (production)
+
+Docker Compose enforces this order via `depends_on` with `condition: service_healthy`:
 
 ```
 postgres ──healthy──→ redis ──healthy──→ backend ──healthy──→ frontend
@@ -222,7 +243,7 @@ postgres ──healthy──→ redis ──healthy──→ backend ──healt
                     pgadmin
 ```
 
-The backend `docker-entrypoint.sh` automatically runs database migrations before the server starts:
+The backend `docker-entrypoint.sh` auto-runs migrations before the server starts:
 
 ```sh
 npx prisma migrate deploy --schema=prisma/schema-core.prisma
@@ -230,7 +251,7 @@ npx prisma migrate deploy --schema=prisma/schema-engagement.prisma
 exec node dist/main
 ```
 
-### 4.9 Access points (Docker mode)
+### Access points (production / full Docker)
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
@@ -243,56 +264,55 @@ exec node dist/main
 
 ---
 
-## 5. Running without Docker (Local Development)
+## 5. Local Development (Recommended daily workflow)
 
-Use this mode for active development — faster HMR and easier debugging.
+During development, **infrastructure runs in Docker** and **backend + frontend run in your terminal**.
+This gives you fast hot-reload without rebuilding Docker images.
 
-### 5.1 Start infrastructure (PostgreSQL + Redis)
-
-You need PostgreSQL and Redis running locally. The easiest way is to start **only** the infrastructure services via Docker while running the app locally:
+### 5.1 Start infrastructure (once per day)
 
 ```bash
-# Start only infra containers
-docker compose up -d postgres redis pgadmin
+# From project root
+docker compose up -d
 ```
 
-Or, if you have PostgreSQL and Redis installed natively:
+This starts Postgres (`localhost:5433`), Redis (`localhost:6380`) and pgAdmin (`localhost:8081`).
+Leave it running in the background — volumes preserve your data between restarts.
+
+### 5.2 Start the Backend (NestJS) — via npm Workspace
+
+All backend commands run from the **`backend/`** workspace root, targeting a service with `--workspace`:
 
 ```bash
-# PostgreSQL
-brew services start postgresql@16     # macOS
-sudo systemctl start postgresql       # Linux
+cd backend
 
-# Redis
-brew services start redis             # macOS
-sudo systemctl start redis-server     # Linux
-```
-
-> **Important:** When using native services, update your `.env` files to use port `5432` (not `5433`) for Postgres and `6379` (not `6380`) for Redis.
-
-### 5.2 Start the Backend (NestJS)
-
-```bash
-cd backend/services/care-coordination
-
-# Install dependencies (first time only)
+# ── First-time setup ──────────────────────────────────────────────────────
+# Install all service dependencies (creates backend/node_modules and per-service ones)
 npm install
 
-# Generate Prisma clients (first time or after schema changes)
-npm run prisma:generate
+# Generate Prisma clients  (re-run after schema changes)
+npm run generate
 
-# Run database migrations (first time or after new migrations)
-npx prisma migrate dev --schema=prisma/schema-core.prisma
-npx prisma migrate dev --schema=prisma/schema-engagement.prisma
+# Run database migrations
+npm run migrate:dev
 
 # Seed the database with demo data (first time only)
-npx ts-node prisma/seed-core.ts
+npm run seed
 
-# Start in watch mode (hot-reload on file changes)
-npm run start:dev
+# ── Day-to-day development ────────────────────────────────────────────────
+# Start with hot-reload (watch mode)
+npm run dev
+
+# Or target the service directly (equivalent):
+npm run start:dev --workspace=@padma/care-coordination
 ```
 
 Backend will be available at **http://localhost:3020**
+
+> **Adding a new service** (e.g. `care-routing`):
+> 1. Create `backend/services/care-routing/package.json` with `"name": "@padma/care-routing"`
+> 2. Run `npm install` from `backend/` — it picks up the new workspace automatically
+> 3. Add a convenience script in `backend/package.json` targeting the new workspace
 
 ### 5.3 Start the Frontend (Next.js)
 
@@ -313,26 +333,26 @@ Frontend will be available at **http://localhost:3000**
 ### 5.4 Stop local services
 
 ```bash
-# Kill the backend (Ctrl+C in its terminal, or):
+# Kill the backend (Ctrl+C in its terminal, or:)
 kill $(lsof -ti:3020)
 
-# Kill the frontend (Ctrl+C in its terminal, or):
+# Kill the frontend (Ctrl+C in its terminal, or:)
 kill $(lsof -ti:3000)
 
-# Stop Docker infra
-docker compose stop postgres redis pgadmin
+# Stop Docker infra (keeps volumes — data is safe)
+docker compose down
 ```
 
 ### 5.5 Access points (local dev mode)
 
-| Service | URL |
-|---------|-----|
-| Frontend (HMR) | http://localhost:3000 |
-| Backend API | http://localhost:3020 |
-| Swagger / API Docs | http://localhost:3020/api/docs |
-| pgAdmin 4 | http://localhost:8081 |
-| PostgreSQL | `localhost:5432` (native) or `localhost:5433` (Docker) |
-| Redis | `localhost:6379` (native) or `localhost:6380` (Docker) |
+| Service | URL / Host | Notes |
+|---------|-----------|-------|
+| Frontend (HMR) | http://localhost:3000 | Next.js dev server |
+| Backend API | http://localhost:3020 | NestJS watch mode |
+| Swagger / API Docs | http://localhost:3020/api/docs | — |
+| pgAdmin 4 | http://localhost:8081 | Docker infra |
+| PostgreSQL | `localhost:5433` | Docker infra (maps to container :5432) |
+| Redis | `localhost:6380` | Docker infra (maps to container :6379) |
 
 ---
 
@@ -709,16 +729,24 @@ docker compose restart backend        # Restart one service
 docker compose logs -f backend        # Follow logs
 docker compose ps                     # Status of all services
 
-# ── Local dev (no Docker) ─────────────────────────────────────────────
-cd backend/services/care-coordination && npm run start:dev   # Backend HMR
-cd frontend && npm run dev                                   # Frontend HMR
+# ── Local dev — Backend (run from backend/) ───────────────────────────
+npm install                                        # Install all workspace deps
+npm run dev                                        # Start care-coordination HMR
+npm run dev --workspace=@padma/care-coordination   # Explicit workspace target
+npm run build                                      # Compile TypeScript
+npm run test                                       # Run unit tests
+npm run lint                                       # Lint all services
 
-# ── Database ──────────────────────────────────────────────────────────
-npm run prisma:generate               # Regenerate Prisma clients
-npx prisma migrate dev --schema=...   # Create + apply migration (dev)
-npx prisma migrate deploy --schema=.. # Apply migrations (prod)
-npx prisma migrate reset --schema=... # ⚠️ Wipe + re-run all migrations
-npx prisma studio --schema=...        # Open GUI on :5555
+# ── Local dev — Frontend (run from frontend/) ─────────────────────────
+npm install && npm run dev             # Install + start Next.js HMR
+
+# ── Database (run from backend/) ──────────────────────────────────────
+npm run generate                       # Regenerate both Prisma clients
+npm run migrate:dev                    # Create + apply migrations (dev)
+npm run migrate:prod                   # Apply existing migrations (prod)
+npm run seed                           # Seed demo data
+npm run prisma:studio:core --workspace=@padma/care-coordination   # GUI :5555
+npm run prisma:studio:eng  --workspace=@padma/care-coordination   # GUI :5556
 
 # ── Health checks ─────────────────────────────────────────────────────
 curl http://localhost:3020/api/v1/health

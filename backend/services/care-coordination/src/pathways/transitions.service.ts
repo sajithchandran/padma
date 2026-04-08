@@ -1,10 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { CreateTransitionRuleDto } from './dto/create-transition-rule.dto';
 
 @Injectable()
 export class TransitionsService {
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
+
+  async listByPathway(tenantId: string, pathwayId: string) {
+    await this.ensurePathwayExists(tenantId, pathwayId);
+
+    return this.prisma.stageTransitionRule.findMany({
+      where: { pathwayId, tenantId },
+      include: {
+        fromStage: { select: { id: true, name: true, code: true, stageType: true } },
+        toStage: { select: { id: true, name: true, code: true, stageType: true } },
+      },
+      orderBy: { priority: 'asc' },
+    });
+  }
 
   async create(tenantId: string, pathwayId: string, dto: CreateTransitionRuleDto) {
     await this.ensurePathwayExists(tenantId, pathwayId);
@@ -16,10 +29,26 @@ export class TransitionsService {
         ...dto,
       },
       include: {
-        fromStage: { select: { id: true, name: true, code: true } },
-        toStage: { select: { id: true, name: true, code: true } },
+        fromStage: { select: { id: true, name: true, code: true, stageType: true } },
+        toStage: { select: { id: true, name: true, code: true, stageType: true } },
       },
     });
+  }
+
+  async findOne(tenantId: string, id: string) {
+    const rule = await this.prisma.stageTransitionRule.findFirst({
+      where: { id, tenantId },
+      include: {
+        fromStage: { select: { id: true, name: true, code: true, stageType: true } },
+        toStage: { select: { id: true, name: true, code: true, stageType: true } },
+      },
+    });
+
+    if (!rule) {
+      throw new NotFoundException(`Transition rule ${id} not found`);
+    }
+
+    return rule;
   }
 
   async update(tenantId: string, id: string, dto: Partial<CreateTransitionRuleDto>) {
@@ -29,8 +58,8 @@ export class TransitionsService {
       where: { id },
       data: dto,
       include: {
-        fromStage: { select: { id: true, name: true, code: true } },
-        toStage: { select: { id: true, name: true, code: true } },
+        fromStage: { select: { id: true, name: true, code: true, stageType: true } },
+        toStage: { select: { id: true, name: true, code: true, stageType: true } },
       },
     });
   }

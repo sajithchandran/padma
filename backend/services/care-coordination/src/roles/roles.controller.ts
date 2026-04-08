@@ -15,14 +15,14 @@ export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 
   @Get()
-  @Roles('admin', 'supervisor')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'List system roles and tenant custom roles with their permissions' })
   findAll(@Tenant() ctx: TenantContext) {
     return this.rolesService.findAll(ctx.tenantId);
   }
 
   @Get('permissions')
-  @Roles('admin', 'supervisor')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'List all available permissions that can be assigned to roles' })
   findAllPermissions() {
     return this.rolesService.findAllPermissions();

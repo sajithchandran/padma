@@ -3,7 +3,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { ConditionEvaluatorService } from '../pathway-engine/condition-evaluator.service';
 import { JobsService } from '../jobs/jobs.service';
 import { GenesysClient } from '../integrations/genesys/genesys.client';
@@ -30,7 +30,7 @@ export class EscalationService {
   private readonly logger = new Logger(EscalationService.name);
 
   constructor(
-    private readonly prisma: PrismaCoreService,
+    private readonly prisma: PrismaService,
     private readonly conditionEvaluator: ConditionEvaluatorService,
     private readonly jobsService: JobsService,
     private readonly genesysClient: GenesysClient,

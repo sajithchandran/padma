@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { Tenant } from '../common/decorators/tenant.decorator';
 import type { TenantContext } from '../common/decorators/tenant.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -15,7 +16,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @Roles('admin', 'supervisor')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'List all users in the current tenant' })
   findAll(@Tenant() ctx: TenantContext) {
     return this.usersService.findAll(ctx.tenantId);
@@ -29,8 +30,18 @@ export class UsersController {
     return this.usersService.findOne(ctx.tenantId, userId);
   }
 
+  @Post()
+  @Roles('admin', 'supervisor', 'care_coordinator')
+  @ApiOperation({ summary: 'Create a user and assign tenant access' })
+  create(
+    @Tenant() ctx: TenantContext,
+    @Body() dto: CreateUserDto,
+  ) {
+    return this.usersService.create(ctx.tenantId, ctx.userId, dto);
+  }
+
   @Post(':userId/roles')
-  @Roles('admin', 'supervisor')
+  @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Assign or update a user\'s role within this tenant' })
   @ApiParam({ name: 'userId', type: 'string', format: 'uuid' })
   assignRole(

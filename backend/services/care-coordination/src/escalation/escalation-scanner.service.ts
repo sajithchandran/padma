@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { EscalationService } from './escalation.service';
 
 @Injectable()
@@ -9,7 +9,7 @@ export class EscalationScannerService {
   private isRunning = false;
 
   constructor(
-    private readonly prisma: PrismaCoreService,
+    private readonly prisma: PrismaService,
     private readonly escalationService: EscalationService,
   ) {}
 

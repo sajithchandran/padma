@@ -1,17 +1,16 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { CreatePathwayDto } from './dto/create-pathway.dto';
 import { UpdatePathwayDto } from './dto/update-pathway.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class PathwaysService {
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(tenantId: string, userId: string, dto: CreatePathwayDto) {
     const { stages, ...pathwayData } = dto;
@@ -54,7 +53,10 @@ export class PathwaysService {
         take: limit,
         orderBy: { [sortBy]: sortOrder },
         include: {
-          stages: { select: { id: true, name: true, sortOrder: true }, orderBy: { sortOrder: 'asc' } },
+          stages: {
+            select: { id: true, code: true, name: true, stageType: true, careSetting: true, sortOrder: true },
+            orderBy: { sortOrder: 'asc' },
+          },
           _count: { select: { enrollments: true } },
         },
       }),
@@ -155,6 +157,27 @@ export class PathwaysService {
     return this.prisma.clinicalPathway.update({
       where: { id },
       data: { status: 'active', updatedBy: userId },
+    });
+  }
+
+  async softDelete(tenantId: string, id: string, userId: string) {
+    const pathway = await this.prisma.clinicalPathway.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!pathway) {
+      throw new NotFoundException(`Pathway ${id} not found`);
+    }
+
+    if (pathway.status === 'active') {
+      throw new BadRequestException(
+        'Cannot delete an active pathway. Deprecate it first or clone it.',
+      );
+    }
+
+    return this.prisma.clinicalPathway.update({
+      where: { id },
+      data: { isActive: false, updatedBy: userId },
     });
   }
 

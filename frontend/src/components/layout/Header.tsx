@@ -5,6 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Search, Bell, ChevronDown, Settings, LogOut, User, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
+import { useAuthStore } from '@/store/auth.store';
+import { authService } from '@/services/auth.service';
 
 const PAGE_TITLES: Record<string, { title: string; subtitle?: string }> = {
   '/dashboard':     { title: 'Dashboard', subtitle: 'Overview of care coordination activity' },
@@ -15,6 +17,9 @@ const PAGE_TITLES: Record<string, { title: string; subtitle?: string }> = {
   '/communications':{ title: 'Communications', subtitle: 'Outbound and inbound patient communications' },
   '/analytics':     { title: 'Analytics & Reports', subtitle: 'Reports and performance metrics' },
   '/users':         { title: 'Users & Roles', subtitle: 'Team members, roles and permissions' },
+  '/care-team':     { title: 'Care Team', subtitle: 'Tenant care-team master directory and eligible roles' },
+  '/communication-templates': { title: 'Communication Templates', subtitle: 'Manage reusable outbound templates and approvals' },
+  '/privacy-consent': { title: 'Privacy & Consent', subtitle: 'Manage patient communication consent records' },
   '/settings':      { title: 'Tenant Settings', subtitle: 'Organisation configuration and feature flags' },
 };
 
@@ -29,10 +34,21 @@ export function Header() {
   const router = useRouter();
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const { user, tenant, token, logout: storeLogout } = useAuthStore();
 
   const basePath = '/' + pathname.split('/')[1];
   const page = PAGE_TITLES[basePath] ?? PAGE_TITLES[pathname] ?? { title: 'Padma' };
   const unreadCount = NOTIFICATIONS.filter((n) => n.unread).length;
+
+  async function handleLogout() {
+    setSigningOut(true);
+    setProfileOpen(false);
+    if (token) await authService.logout(token);
+    storeLogout();
+    router.push('/login');
+  }
 
   return (
     <header className="h-16 flex-shrink-0 bg-white border-b border-slate-200 flex items-center justify-between px-6 gap-4 relative z-30">
@@ -106,11 +122,12 @@ export function Header() {
           <button
             onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
             className="flex items-center gap-2 h-9 px-2 rounded-lg hover:bg-slate-100 transition-colors"
+            disabled={signingOut}
           >
-            <Avatar name="Sarah Mitchell" size="sm" />
+            <Avatar name={user?.name ?? 'User'} size="sm" />
             <div className="hidden md:block text-left">
-              <p className="text-xs font-semibold text-slate-900 leading-none">Sarah Mitchell</p>
-              <p className="text-[10px] text-slate-500 leading-tight mt-0.5">Administrator</p>
+              <p className="text-xs font-semibold text-slate-900 leading-none">{user?.name ?? 'Loading…'}</p>
+              <p className="text-[10px] text-slate-500 leading-tight mt-0.5 capitalize">{user?.roleCode?.replace('_', ' ') ?? ''}</p>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden md:block" />
           </button>
@@ -120,10 +137,10 @@ export function Header() {
               <div className="fixed inset-0" onClick={() => setProfileOpen(false)} />
               <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
                 <div className="px-4 py-3 border-b border-slate-100">
-                  <p className="text-sm font-semibold text-slate-900">Sarah Mitchell</p>
-                  <p className="text-xs text-slate-500">admin@padma.dev</p>
+                  <p className="text-sm font-semibold text-slate-900">{user?.name ?? '—'}</p>
+                  <p className="text-xs text-slate-500">{user?.email ?? '—'}</p>
                   <span className="inline-block mt-1.5 text-[10px] font-medium px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full ring-1 ring-blue-200">
-                    Demo Healthcare System
+                    {tenant?.name ?? 'Unknown tenant'}
                   </span>
                 </div>
                 <div className="py-1">
@@ -140,8 +157,9 @@ export function Header() {
                 </div>
                 <div className="py-1 border-t border-slate-100">
                   <button
-                    onClick={() => router.push('/login')}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    onClick={handleLogout}
+                    disabled={signingOut}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                   >
                     <LogOut className="h-4 w-4" />
                     Sign out

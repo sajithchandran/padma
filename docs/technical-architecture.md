@@ -191,6 +191,20 @@ When a patient is enrolled in a clinical pathway.
 - Indexes: [tenantId, patientId, status]; [tenantId, currentStageId, status]; [tenantId, primaryCoordinatorId, status]
 ```
 
+### Care Team Master (Tenant-Level Directory)
+Tenant-level care team membership should be exposed as a reusable master dataset, separate from any single enrollment instance.
+```
+- Derived from active UserTenantRole memberships for care-delivery roles
+  (supervisor | care_coordinator | physician | nurse)
+- Source of truth for enrollment assignment UIs and care-team pickers
+- Exposed through APIs such as:
+  - GET /care-team/members
+  - GET /care-team/members/:userId
+  - GET /care-team/roles
+- Enrollment.careTeam remains the patient-level assignment snapshot
+  while Care Team Master acts as the reusable tenant directory
+```
+
 ### PatientStageHistory (Stage Transition Audit Trail)
 ```
 - id, tenantId, enrollmentId

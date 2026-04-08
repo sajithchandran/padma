@@ -3,13 +3,13 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaEngagementService } from '../database/prisma-engagement.service';
+import { PrismaService } from '../database/prisma.service';
 
 @Injectable()
 export class ConsentService {
   private readonly logger = new Logger(ConsentService.name);
 
-  constructor(private readonly prismaEngagement: PrismaEngagementService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
    * Grant (or re-grant) a consent for a patient.
@@ -28,7 +28,7 @@ export class ConsentService {
       `ConsentService.grant: tenantId=${tenantId} patientId=${patientId} type=${consentType} method=${method}`,
     );
 
-    return this.prismaEngagement.patientConsent.create({
+    return this.prisma.patientConsent.create({
       data: {
         tenantId,
         patientId,
@@ -58,7 +58,7 @@ export class ConsentService {
 
     const now = new Date();
 
-    await this.prismaEngagement.patientConsent.updateMany({
+    await this.prisma.patientConsent.updateMany({
       where: {
         tenantId,
         patientId,
@@ -82,7 +82,7 @@ export class ConsentService {
   ): Promise<boolean> {
     const now = new Date();
 
-    const record = await this.prismaEngagement.patientConsent.findFirst({
+    const record = await this.prisma.patientConsent.findFirst({
       where: {
         tenantId,
         patientId,
@@ -99,7 +99,7 @@ export class ConsentService {
    * Return all consent records for a patient across all types.
    */
   async getAll(tenantId: string, patientId: string) {
-    return this.prismaEngagement.patientConsent.findMany({
+    return this.prisma.patientConsent.findMany({
       where: { tenantId, patientId },
       orderBy: { createdAt: 'desc' },
     });

@@ -16,7 +16,9 @@ export function Card({ children, className, padding = 'md', hover, ...props }: C
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+    </div>
   );
 }
 

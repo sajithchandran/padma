@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '.prisma/client-core';
 import { WebhookSignatureGuard } from '../../common/guards/webhook-signature.guard';
-import { PrismaCoreService } from '../../database/prisma-core.service';
+import { PrismaService } from '../../database/prisma.service';
 import { AthmaWebhookHandlerService } from './athma-webhook-handler.service';
 
 @Controller('webhooks')
@@ -17,7 +17,7 @@ export class AthmaWebhookController {
   private readonly logger = new Logger(AthmaWebhookController.name);
 
   constructor(
-    private readonly prisma: PrismaCoreService,
+    private readonly prisma: PrismaService,
     private readonly handlerService: AthmaWebhookHandlerService,
   ) {}
 

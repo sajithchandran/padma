@@ -1,0 +1,21 @@
+{
+  "name": "@padma/backend",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "services/*"
+  ],
+  "scripts": {
+    "dev":        "npm run start:dev   --workspace=@padma/care-coordination",
+    "start":      "npm run start:prod  --workspace=@padma/care-coordination",
+    "build":      "npm run build       --workspace=@padma/care-coordination",
+    "test":       "npm run test        --workspace=@padma/care-coordination",
+    "test:cov":   "npm run test:cov    --workspace=@padma/care-coordination",
+    "lint":       "npm run lint        --workspace=@padma/care-coordination",
+    "format":     "npm run format      --workspace=@padma/care-coordination",
+    "migrate:dev":   "npm run prisma:migrate:dev --workspace=@padma/care-coordination",
+    "migrate:prod":  "npm run prisma:migrate:prod --workspace=@padma/care-coordination",
+    "generate":      "npm run prisma:generate    --workspace=@padma/care-coordination",
+    "seed":          "npm run prisma:seed        --workspace=@padma/care-coordination"
+  }
+}

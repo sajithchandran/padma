@@ -1,0 +1,859 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Padma — unified database schema
+//
+// Dev database : padma_dev   (DATABASE_URL in .env)
+// Prod database: padma_prod  (DATABASE_URL in docker-compose.prod.yml / env)
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  OFFBOARDED
+
+  @@map("tenant_status")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING_INVITE
+  DEACTIVATED
+
+  @@map("user_status")
+}
+
+// ============================================================
+// TENANT
+// ============================================================
+
+model Tenant {
+  id          String       @id @default(uuid()) @db.Uuid
+  slug        String       @unique @db.VarChar(100)
+  name        String       @db.VarChar(255)
+  displayName String?      @map("display_name") @db.VarChar(255)
+  status      TenantStatus @default(ACTIVE)
+  country     String       @db.VarChar(2)
+  timezone    String       @default("Asia/Dubai") @db.VarChar(50)
+  locale      String       @default("en") @db.VarChar(10)
+  planTier    String       @default("standard") @map("plan_tier") @db.VarChar(30)
+  maxUsers    Int          @default(50) @map("max_users")
+  trialEndsAt  DateTime?   @map("trial_ends_at") @db.Timestamptz(6)
+  oidcIssuer   String?     @map("oidc_issuer") @db.VarChar(500)
+  oidcClientId String?     @map("oidc_client_id") @db.VarChar(255)
+  oidcAudience String?     @map("oidc_audience") @db.VarChar(255)
+  contactEmail String?     @map("contact_email") @db.VarChar(255)
+  featureFlags Json        @default("{}") @map("feature_flags") @db.JsonB
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users UserTenantRole[]
+  roles Role[]
+  careTeams CareTeam[]
+
+  @@index([status])
+  @@map("tenants")
+}
+
+// ============================================================
+// PERMISSION
+// ============================================================
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(100)
+  resource    String   @db.VarChar(50)
+  action      String   @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  roles RolePermission[]
+
+  @@index([resource])
+  @@map("permissions")
+}
+
+// ============================================================
+// ROLE
+// ============================================================
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  code        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  isSystem    Boolean  @default(false) @map("is_system")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  users       UserTenantRole[]
+  careTeamMembers CareTeamMember[]
+
+  @@unique([tenantId, code], name: "uq_role_tenant_code")
+  @@index([isSystem, isActive])
+  @@map("roles")
+}
+
+// ============================================================
+// ROLE_PERMISSION
+// ============================================================
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamptz(6)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// USER
+// ============================================================
+
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  oidcSub       String     @unique @map("oidc_sub") @db.VarChar(255)
+  email         String     @db.VarChar(255)
+  passwordHash  String?    @map("password_hash") @db.VarChar(255)
+  emailVerified Boolean    @default(false) @map("email_verified")
+  firstName     String?    @map("first_name") @db.VarChar(100)
+  lastName      String?    @map("last_name") @db.VarChar(100)
+  displayName   String?    @map("display_name") @db.VarChar(255)
+  avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
+  phoneNumber   String?    @map("phone_number") @db.VarChar(30)
+  status        UserStatus @default(ACTIVE)
+  timezone      String     @default("Asia/Dubai") @db.VarChar(50)
+  locale        String     @default("en") @db.VarChar(10)
+  lastLoginAt   DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  lastLoginIp   String?    @map("last_login_ip") @db.VarChar(45)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenantRoles UserTenantRole[]
+  careTeamMemberships CareTeamMember[]
+
+  @@index([email])
+  @@index([status])
+  @@map("users")
+}
+
+// ============================================================
+// USER_TENANT_ROLE
+// ============================================================
+
+model UserTenantRole {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  isActive     Boolean   @default(true) @map("is_active")
+  facilityId   String?   @map("facility_id") @db.Uuid
+  facilityName String?   @map("facility_name") @db.VarChar(255)
+  grantedBy    String?   @map("granted_by") @db.Uuid
+  grantedAt    DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, tenantId], name: "uq_user_tenant_role")
+  @@index([tenantId, roleId, isActive])
+  @@index([userId, isActive])
+  @@map("user_tenant_roles")
+}
+
+// ============================================================
+// CARE TEAM
+// ============================================================
+
+model CareTeam {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy   String?  @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy   String?  @map("updated_by") @db.Uuid
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members CareTeamMember[]
+
+  @@unique([tenantId, name], name: "uq_care_team_tenant_name")
+  @@index([tenantId, isActive, name])
+  @@map("care_teams")
+}
+
+model CareTeamMember {
+  id         String   @id @default(uuid()) @db.Uuid
+  careTeamId String   @map("care_team_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  facilityId String?  @map("facility_id") @db.Uuid
+  addedAt    DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+  addedBy    String?  @map("added_by") @db.Uuid
+
+  careTeam CareTeam @relation(fields: [careTeamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role     @relation(fields: [roleId], references: [id])
+
+  @@unique([careTeamId, userId], name: "uq_care_team_member_user")
+  @@index([careTeamId, roleId])
+  @@index([userId])
+  @@map("care_team_members")
+}
+
+// ============================================================
+// CLINICAL PATHWAY
+// ============================================================
+
+model ClinicalPathway {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  code        String  @db.VarChar(100)
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+  category    String  @db.VarChar(50)
+
+  applicableSettings Json @default("[]") @map("applicable_settings") @db.JsonB
+
+  version             Int @default(1) @db.SmallInt
+  defaultDurationDays Int @map("default_duration_days")
+
+  externalSourceSystem String? @map("external_source_system") @db.VarChar(50)
+  externalSourceId     String? @map("external_source_id") @db.VarChar(255)
+
+  status   String  @default("draft") @db.VarChar(20)
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  stages      PathwayStage[]
+  transitions StageTransitionRule[]
+  enrollments PatientPathwayEnrollment[]
+
+  @@unique([tenantId, code, version], name: "uq_pathway_tenant_code_version")
+  @@index([tenantId, category, isActive])
+  @@index([tenantId, status])
+  @@map("clinical_pathways")
+}
+
+// ============================================================
+// PATHWAY STAGE
+// ============================================================
+
+model PathwayStage {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  pathwayId String @map("pathway_id") @db.Uuid
+
+  code        String  @db.VarChar(100)
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+
+  stageType   String @map("stage_type") @db.VarChar(20)
+  careSetting String @default("any") @map("care_setting") @db.VarChar(20)
+
+  sortOrder            Int     @map("sort_order") @db.SmallInt
+  expectedDurationDays Int?    @map("expected_duration_days")
+  minDurationDays      Int?    @map("min_duration_days")
+  autoTransition       Boolean @default(false) @map("auto_transition")
+
+  entryActions Json? @map("entry_actions") @db.JsonB
+  exitActions  Json? @map("exit_actions") @db.JsonB
+  metadata     Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  pathway               ClinicalPathway           @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  interventionTemplates StageInterventionTemplate[]
+  transitionsFrom       StageTransitionRule[]      @relation("FromStage")
+  transitionsTo         StageTransitionRule[]      @relation("ToStage")
+  currentEnrollments    PatientPathwayEnrollment[] @relation("CurrentStage")
+  stageHistoryFrom      PatientStageHistory[]      @relation("HistoryFromStage")
+  stageHistoryTo        PatientStageHistory[]      @relation("HistoryToStage")
+
+  @@unique([tenantId, pathwayId, code], name: "uq_stage_tenant_pathway_code")
+  @@index([tenantId, pathwayId, sortOrder])
+  @@map("pathway_stages")
+}
+
+// ============================================================
+// STAGE INTERVENTION TEMPLATE
+// ============================================================
+
+model StageInterventionTemplate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  stageId  String @map("stage_id") @db.Uuid
+
+  interventionType String @map("intervention_type") @db.VarChar(30)
+  name             String @db.VarChar(255)
+  description      String? @db.Text
+
+  careSetting  String @default("any") @map("care_setting") @db.VarChar(20)
+  deliveryMode String @default("in_person") @map("delivery_mode") @db.VarChar(30)
+
+  frequencyType  String @map("frequency_type") @db.VarChar(20)
+  frequencyValue Int?   @map("frequency_value")
+
+  startDayOffset Int  @default(0) @map("start_day_offset")
+  endDayOffset   Int? @map("end_day_offset")
+
+  defaultOwnerRole String? @map("default_owner_role") @db.VarChar(50)
+
+  autoCompleteSource    String? @map("auto_complete_source") @db.VarChar(30)
+  autoCompleteEventType String? @map("auto_complete_event_type") @db.VarChar(100)
+
+  priority   Int     @default(2) @db.SmallInt
+  isCritical Boolean @default(false) @map("is_critical")
+
+  reminderConfig Json? @map("reminder_config") @db.JsonB
+  metadata       Json? @db.JsonB
+  sortOrder      Int   @default(0) @map("sort_order") @db.SmallInt
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  stage PathwayStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  tasks CareTask[]
+
+  @@index([tenantId, stageId, sortOrder])
+  @@map("stage_intervention_templates")
+}
+
+// ============================================================
+// STAGE TRANSITION RULE
+// ============================================================
+
+model StageTransitionRule {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  pathwayId String @map("pathway_id") @db.Uuid
+
+  fromStageId String @map("from_stage_id") @db.Uuid
+  toStageId   String @map("to_stage_id") @db.Uuid
+
+  ruleName        String  @map("rule_name") @db.VarChar(255)
+  ruleDescription String? @map("rule_description") @db.Text
+
+  triggerType String @map("trigger_type") @db.VarChar(20)
+  conditionExpr Json  @map("condition_expr") @db.JsonB
+
+  priority    Int     @default(100) @db.SmallInt
+  isAutomatic Boolean @default(false) @map("is_automatic")
+  isActive    Boolean @default(true) @map("is_active")
+
+  transitionActions Json? @map("transition_actions") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  pathway      ClinicalPathway     @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  fromStage    PathwayStage        @relation("FromStage", fields: [fromStageId], references: [id])
+  toStage      PathwayStage        @relation("ToStage", fields: [toStageId], references: [id])
+  stageHistory PatientStageHistory[]
+
+  @@index([tenantId, fromStageId, isActive, priority])
+  @@map("stage_transition_rules")
+}
+
+// ============================================================
+// PATIENT PATHWAY ENROLLMENT
+// ============================================================
+
+model PatientPathwayEnrollment {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  patientDisplayName String?   @map("patient_display_name") @db.VarChar(255)
+  patientMrn         String?   @map("patient_mrn") @db.VarChar(50)
+  patientGender      String?   @map("patient_gender") @db.VarChar(1)
+  patientDob         DateTime? @map("patient_dob") @db.Date
+
+  pathwayId      String @map("pathway_id") @db.Uuid
+  pathwayVersion Int    @map("pathway_version") @db.SmallInt
+
+  planName String @map("plan_name") @db.VarChar(255)
+  category String @db.VarChar(50)
+
+  enrollmentDate  DateTime  @map("enrollment_date") @db.Date
+  startDate       DateTime  @map("start_date") @db.Date
+  expectedEndDate DateTime  @map("expected_end_date") @db.Date
+  actualEndDate   DateTime? @map("actual_end_date") @db.Date
+
+  currentStageId        String   @map("current_stage_id") @db.Uuid
+  currentStageEnteredAt DateTime @map("current_stage_entered_at") @db.Timestamptz(6)
+  currentCareSetting    String   @default("outpatient") @map("current_care_setting") @db.VarChar(20)
+  previousStageId       String?  @map("previous_stage_id") @db.Uuid
+
+  primaryCoordinatorId String? @map("primary_coordinator_id") @db.Uuid
+  careTeam             Json?   @map("care_team") @db.JsonB
+
+  status       String  @default("active") @db.VarChar(20)
+  statusReason String? @map("status_reason") @db.Text
+
+  totalTasks       Int      @default(0) @map("total_tasks")
+  completedTasks   Int      @default(0) @map("completed_tasks")
+  overdueTasks     Int      @default(0) @map("overdue_tasks")
+  adherencePercent Decimal? @map("adherence_percent") @db.Decimal(5, 2)
+
+  athmaPatientId String? @map("athma_patient_id") @db.VarChar(255)
+  athmaProductId String? @map("athma_product_id") @db.VarChar(255)
+
+  clinicalData Json? @map("clinical_data") @db.JsonB
+  notes        String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  pathway      ClinicalPathway @relation(fields: [pathwayId], references: [id])
+  currentStage PathwayStage    @relation("CurrentStage", fields: [currentStageId], references: [id])
+  tasks        CareTask[]
+  stageHistory PatientStageHistory[]
+
+  @@index([tenantId, patientId, status])
+  @@index([tenantId, currentStageId, status])
+  @@index([tenantId, primaryCoordinatorId, status])
+  @@index([tenantId, status, adherencePercent])
+  @@index([tenantId, category, status])
+  @@map("patient_pathway_enrollments")
+}
+
+// ============================================================
+// PATIENT STAGE HISTORY
+// ============================================================
+
+model PatientStageHistory {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @map("tenant_id") @db.Uuid
+  enrollmentId String @map("enrollment_id") @db.Uuid
+
+  fromStageId   String? @map("from_stage_id") @db.Uuid
+  fromStageName String? @map("from_stage_name") @db.VarChar(255)
+  toStageId     String  @map("to_stage_id") @db.Uuid
+  toStageName   String  @map("to_stage_name") @db.VarChar(255)
+
+  transitionRuleId String? @map("transition_rule_id") @db.Uuid
+  transitionType   String  @map("transition_type") @db.VarChar(30)
+
+  reason               String? @db.Text
+  clinicalDataSnapshot Json?   @map("clinical_data_snapshot") @db.JsonB
+  performedBy          String? @map("performed_by") @db.Uuid
+
+  transitionedAt DateTime @default(now()) @map("transitioned_at") @db.Timestamptz(6)
+
+  enrollment     PatientPathwayEnrollment @relation(fields: [enrollmentId], references: [id])
+  fromStage      PathwayStage?            @relation("HistoryFromStage", fields: [fromStageId], references: [id])
+  toStage        PathwayStage             @relation("HistoryToStage", fields: [toStageId], references: [id])
+  transitionRule StageTransitionRule?     @relation(fields: [transitionRuleId], references: [id])
+
+  @@index([tenantId, enrollmentId, transitionedAt(sort: Desc)])
+  @@map("patient_stage_history")
+}
+
+// ============================================================
+// CARE TASK
+// ============================================================
+
+model CareTask {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @map("tenant_id") @db.Uuid
+  patientId    String @map("patient_id") @db.Uuid
+  enrollmentId String @map("enrollment_id") @db.Uuid
+  stageId      String @map("stage_id") @db.Uuid
+
+  patientDisplayName String? @map("patient_display_name") @db.VarChar(255)
+  patientMrn         String? @map("patient_mrn") @db.VarChar(50)
+
+  interventionTemplateId String? @map("intervention_template_id") @db.Uuid
+  interventionType       String  @map("intervention_type") @db.VarChar(30)
+
+  title       String  @db.VarChar(500)
+  description String? @db.Text
+
+  careSetting  String @default("outpatient") @map("care_setting") @db.VarChar(20)
+  deliveryMode String @default("in_person") @map("delivery_mode") @db.VarChar(30)
+
+  dueDate         DateTime  @map("due_date") @db.Date
+  dueTime         String?   @map("due_time") @db.VarChar(5)
+  windowStartDate DateTime? @map("window_start_date") @db.Date
+  windowEndDate   DateTime? @map("window_end_date") @db.Date
+
+  occurrenceNumber Int  @default(1) @map("occurrence_number")
+  totalOccurrences Int? @map("total_occurrences")
+
+  assignedToUserId String? @map("assigned_to_user_id") @db.Uuid
+  assignedToRole   String? @map("assigned_to_role") @db.VarChar(50)
+
+  priority   Int     @default(2) @db.SmallInt
+  isCritical Boolean @default(false) @map("is_critical")
+
+  status String @default("pending") @db.VarChar(20)
+
+  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
+  completedBy      String?   @map("completed_by") @db.Uuid
+  completionMethod String?   @map("completion_method") @db.VarChar(30)
+  completionNotes  String?   @map("completion_notes") @db.Text
+  completionEvidence Json?   @map("completion_evidence") @db.JsonB
+
+  autoCompleteSource    String? @map("auto_complete_source") @db.VarChar(30)
+  autoCompleteEventType String? @map("auto_complete_event_type") @db.VarChar(100)
+
+  escalationLevel  Int       @default(0) @map("escalation_level") @db.SmallInt
+  lastEscalatedAt  DateTime? @map("last_escalated_at") @db.Timestamptz(6)
+
+  lastReminderSentAt DateTime? @map("last_reminder_sent_at") @db.Timestamptz(6)
+  reminderCount      Int       @default(0) @map("reminder_count") @db.SmallInt
+  nextReminderAt     DateTime? @map("next_reminder_at") @db.Timestamptz(6)
+
+  metadata  Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  enrollment           PatientPathwayEnrollment   @relation(fields: [enrollmentId], references: [id])
+  interventionTemplate StageInterventionTemplate? @relation(fields: [interventionTemplateId], references: [id])
+  taskEvents           CareTaskEvent[]
+
+  @@index([tenantId, patientId, status, dueDate])
+  @@index([tenantId, enrollmentId, stageId, status])
+  @@index([tenantId, assignedToUserId, status, dueDate])
+  @@index([tenantId, status, dueDate], name: "idx_tasks_overdue_scan")
+  @@index([tenantId, autoCompleteEventType, status], name: "idx_tasks_autocompletion")
+  @@index([tenantId, nextReminderAt, status], name: "idx_tasks_reminder_scan")
+  @@map("care_tasks")
+}
+
+// ============================================================
+// CARE TASK EVENT
+// ============================================================
+
+model CareTaskEvent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  taskId   String @map("task_id") @db.Uuid
+
+  eventType  String  @map("event_type") @db.VarChar(30)
+  fromStatus String? @map("from_status") @db.VarChar(20)
+  toStatus   String? @map("to_status") @db.VarChar(20)
+
+  payload     Json?   @db.JsonB
+  performedBy String? @map("performed_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  task CareTask @relation(fields: [taskId], references: [id])
+
+  @@index([tenantId, taskId, createdAt(sort: Desc)])
+  @@map("care_task_events")
+}
+
+// ============================================================
+// ESCALATION RULE
+// ============================================================
+
+model EscalationRule {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+
+  triggerType     String @map("trigger_type") @db.VarChar(40)
+  conditionExpr   Json   @map("condition_expr") @db.JsonB
+  escalationChain Json   @map("escalation_chain") @db.JsonB
+
+  priority Int     @default(100) @db.SmallInt
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, isActive, triggerType])
+  @@map("escalation_rules")
+}
+
+// ============================================================
+// PATIENT SEGMENT
+// ============================================================
+
+model PatientSegment {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+
+  filterExpr Json @map("filter_expr") @db.JsonB
+
+  cachedCount     Int?      @map("cached_count")
+  lastRefreshedAt DateTime? @map("last_refreshed_at") @db.Timestamptz(6)
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, name])
+  @@map("patient_segments")
+}
+
+// ============================================================
+// PADMA JOB (durable queue)
+// ============================================================
+
+model PadmaJob {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  jobType String @map("job_type") @db.VarChar(40)
+
+  patientId    String? @map("patient_id") @db.Uuid
+  enrollmentId String? @map("enrollment_id") @db.Uuid
+  taskId       String? @map("task_id") @db.Uuid
+
+  payload Json @db.JsonB
+
+  runAt  DateTime @map("run_at") @db.Timestamptz(6)
+  status String   @default("READY") @db.VarChar(10)
+
+  attempts    Int @default(0) @db.SmallInt
+  maxAttempts Int @default(3) @map("max_attempts") @db.SmallInt
+
+  lockedAt DateTime? @map("locked_at") @db.Timestamptz(6)
+  lockedBy String?   @map("locked_by") @db.VarChar(100)
+
+  lastError String? @map("last_error") @db.Text
+
+  idempotencyKey String @map("idempotency_key") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, runAt], name: "idx_padma_jobs_ready")
+  @@map("padma_jobs")
+}
+
+// ============================================================
+// WEBHOOK EVENT
+// ============================================================
+
+model WebhookEvent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  source    String @db.VarChar(30)
+  eventType String @map("event_type") @db.VarChar(100)
+
+  payload     Json     @db.JsonB
+  signature   String?  @db.VarChar(255)
+  processed   Boolean  @default(false)
+  error       String?  @db.Text
+
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  @@index([tenantId, source, receivedAt(sort: Desc)])
+  @@index([tenantId, processed, source])
+  @@map("webhook_events")
+}
+
+// ============================================================
+// COMMUNICATION TEMPLATE
+// ============================================================
+
+model CommunicationTemplate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  code     String @db.VarChar(100)
+  name     String @db.VarChar(255)
+  channel  String @db.VarChar(20)
+  language String @default("en") @db.VarChar(5)
+
+  subject      String? @db.VarChar(500)
+  bodyTemplate String  @map("body_template") @db.Text
+  variables    Json?   @db.JsonB
+
+  category String @default("reminder") @db.VarChar(30)
+
+  version Int    @default(1) @db.SmallInt
+  status  String @default("draft") @db.VarChar(20)
+
+  approvedBy String?   @map("approved_by") @db.Uuid
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String   @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, code, channel, language, version])
+  @@index([tenantId, category, channel, status])
+  @@map("communication_templates")
+}
+
+// ============================================================
+// PATIENT PREFERENCE
+// ============================================================
+
+model PatientPreference {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  preferredLanguage String @default("en") @map("preferred_language") @db.VarChar(5)
+  channelPreference Json   @default("[\"whatsapp\", \"sms\", \"email\"]") @map("channel_preference") @db.JsonB
+
+  quietHoursStart String? @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd   String? @map("quiet_hours_end") @db.VarChar(5)
+  timezone        String  @default("Asia/Dubai") @db.VarChar(50)
+
+  doNotDisturb   Boolean @default(false) @map("do_not_disturb")
+  optOutSms      Boolean @default(false) @map("opt_out_sms")
+  optOutEmail    Boolean @default(false) @map("opt_out_email")
+  optOutWhatsapp Boolean @default(false) @map("opt_out_whatsapp")
+  optOutCall     Boolean @default(false) @map("opt_out_call")
+
+  guardianName     String? @map("guardian_name") @db.VarChar(255)
+  guardianPhone    String? @map("guardian_phone") @db.VarChar(20)
+  guardianRelation String? @map("guardian_relation") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, patientId])
+  @@map("patient_preferences")
+}
+
+// ============================================================
+// PATIENT MESSAGE
+// ============================================================
+
+model PatientMessage {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  channel      String  @db.VarChar(20)
+  direction    String  @default("outbound") @db.VarChar(10)
+  templateCode String? @map("template_code") @db.VarChar(100)
+
+  subject String? @db.VarChar(500)
+  body    String  @db.Text
+
+  purpose String @default("reminder") @db.VarChar(30)
+
+  relatedEntityType String? @map("related_entity_type") @db.VarChar(30)
+  relatedEntityId   String? @map("related_entity_id") @db.Uuid
+
+  status String @default("pending") @db.VarChar(20)
+
+  providerName     String? @map("provider_name") @db.VarChar(30)
+  providerRef      String? @map("provider_ref") @db.VarChar(255)
+  providerResponse Json?   @map("provider_response") @db.JsonB
+
+  failureReason String? @map("failure_reason") @db.Text
+  retryCount    Int     @default(0) @map("retry_count") @db.SmallInt
+
+  idempotencyKey String? @map("idempotency_key") @db.VarChar(255)
+
+  sentAt      DateTime? @map("sent_at") @db.Timestamptz(6)
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(6)
+  readAt      DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, patientId, createdAt(sort: Desc)])
+  @@index([tenantId, status, channel])
+  @@map("patient_messages")
+}
+
+// ============================================================
+// PATIENT CONSENT (GDPR)
+// ============================================================
+
+model PatientConsent {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+
+  consentType String @map("consent_type") @db.VarChar(50)
+  status      String @default("granted") @db.VarChar(20)
+
+  grantedAt   DateTime  @map("granted_at") @db.Timestamptz(6)
+  withdrawnAt DateTime? @map("withdrawn_at") @db.Timestamptz(6)
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  consentVersion   String? @map("consent_version") @db.VarChar(20)
+  collectionMethod String  @map("collection_method") @db.VarChar(20)
+
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+  userAgent String? @map("user_agent") @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, patientId, consentType, status])
+  @@map("patient_consents")
+}
+
+// ============================================================
+// PROVIDER CALLBACK
+// ============================================================
+
+model ProviderCallback {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  providerName String @map("provider_name") @db.VarChar(30)
+  providerRef  String @map("provider_ref") @db.VarChar(255)
+
+  callbackType String @map("callback_type") @db.VarChar(30)
+
+  payload     Json    @db.JsonB
+  processed   Boolean @default(false)
+
+  receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+
+  @@index([tenantId, providerRef])
+  @@index([tenantId, processed])
+  @@map("provider_callbacks")
+}

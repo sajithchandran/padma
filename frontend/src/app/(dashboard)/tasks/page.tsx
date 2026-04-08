@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Search, Plus, Clock, AlertCircle } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Badge, StatusBadge, PriorityBadge } from '@/components/ui/Badge';
+import { StatusBadge, PriorityBadge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
-import { MOCK_TASKS } from '@/lib/mock-data';
 import type { TaskStatus } from '@/types';
+import { fetchTasks, type ApiTask } from '@/services/tasks.service';
 
 const STATUS_COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
   { status: 'PENDING',     label: 'Pending',     color: 'border-amber-400' },
@@ -19,15 +21,89 @@ const STATUS_COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
 
 const PRIORITY_ORDER: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
 
+type ViewTask = {
+  id: string;
+  title: string;
+  patientName?: string;
+  pathwayName?: string;
+  assignedTo?: string;
+  dueDate: string;
+  priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+  status: TaskStatus;
+};
+
+function mapPriority(priority: number, isCritical?: boolean) {
+  if (isCritical || priority <= 0) return 'URGENT' as const;
+  if (priority === 1) return 'HIGH' as const;
+  if (priority === 2) return 'NORMAL' as const;
+  return 'LOW' as const;
+}
+
+function mapStatus(task: ApiTask): TaskStatus {
+  const rawStatus = task.status.toUpperCase();
+  if (rawStatus === 'ACTIVE' || rawStatus === 'IN_PROGRESS') return 'IN_PROGRESS';
+  if (rawStatus === 'COMPLETED' || rawStatus === 'AUTO_COMPLETED') return 'COMPLETED';
+  if (rawStatus === 'OVERDUE') return 'OVERDUE';
+
+  if (rawStatus === 'PENDING' || rawStatus === 'UPCOMING') {
+    const due = new Date(task.dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (!Number.isNaN(due.getTime()) && due < today) return 'OVERDUE';
+    return 'PENDING';
+  }
+
+  return 'PENDING';
+}
+
+function formatDueDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
 export default function TasksPage() {
+  const searchParams = useSearchParams();
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const [search, setSearch] = useState('');
+  const filter = searchParams.get('filter');
+  const currentUserId = typeof window !== 'undefined'
+    ? sessionStorage.getItem('padma_user_id')
+    : null;
+
+  const {
+    data: response,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ['tasks', filter, currentUserId],
+    queryFn: () => fetchTasks({
+      assignedToUserId: filter === 'mine' ? currentUserId ?? undefined : undefined,
+      limit: 100,
+    }),
+  });
+
+  const tasks = useMemo<ViewTask[]>(() => (response?.data ?? []).map((task) => ({
+    id: task.id,
+    title: task.title,
+    patientName: task.patientDisplayName ?? undefined,
+    pathwayName: task.interventionTemplate?.name ?? undefined,
+    assignedTo: task.assignedToUserId === currentUserId ? 'Me' : (task.assignedToRole || task.assignedToUserId || undefined),
+    dueDate: formatDueDate(task.dueDate),
+    priority: mapPriority(task.priority, task.isCritical),
+    status: mapStatus(task),
+  })), [response?.data, currentUserId]);
 
   const filtered = useMemo(() =>
-    MOCK_TASKS.filter((t) => {
+    tasks.filter((t) => {
       const q = search.toLowerCase();
       return !q || t.title.toLowerCase().includes(q) || t.patientName?.toLowerCase().includes(q);
-    }), [search]);
+    }), [tasks, search]);
 
   return (
     <div className="space-y-5">
@@ -52,7 +128,7 @@ export default function TasksPage() {
       {/* Summary badges */}
       <div className="flex flex-wrap gap-2">
         {STATUS_COLUMNS.map((col) => {
-          const count = MOCK_TASKS.filter((t) => t.status === col.status).length;
+          const count = tasks.filter((t) => t.status === col.status).length;
           return (
             <div key={col.status} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border-l-4 border border-slate-200 ${col.color}`}>
               <span className="text-xs font-medium text-slate-600">{col.label}</span>
@@ -62,7 +138,18 @@ export default function TasksPage() {
         })}
       </div>
 
-      {view === 'kanban' ? (
+      {isLoading ? (
+        <Card className="p-8">
+          <p className="text-sm text-slate-500">Loading tasks from the backend…</p>
+        </Card>
+      ) : isError ? (
+        <Card className="p-8">
+          <p className="text-sm font-medium text-red-700">Unable to load tasks.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {error instanceof Error ? error.message : 'The tasks API request failed.'}
+          </p>
+        </Card>
+      ) : view === 'kanban' ? (
         // Kanban Board
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {STATUS_COLUMNS.map((col) => {
@@ -154,6 +241,9 @@ export default function TasksPage() {
               ))}
             </tbody>
           </table>
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-sm text-slate-500">No tasks found.</div>
+          )}
         </Card>
       )}
     </div>

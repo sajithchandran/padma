@@ -59,9 +59,8 @@ const NAV_MAIN: NavItem[] = [
     id: 'tasks',
     label: 'Tasks',
     icon: <CheckSquare className="h-5 w-5" />,
-    badge: 5,
     children: [
-      { label: 'My Tasks', href: '/tasks?filter=mine', badge: 5 },
+      { label: 'My Tasks', href: '/tasks?filter=mine' },
       { label: 'Team Tasks', href: '/tasks?filter=team' },
       { label: 'Completed', href: '/tasks?filter=completed' },
     ],
@@ -75,12 +74,8 @@ const NAV_MAIN: NavItem[] = [
   {
     id: 'communications',
     label: 'Communications',
+    href: '/communications',
     icon: <MessageSquare className="h-5 w-5" />,
-    badge: 3,
-    children: [
-      { label: 'Inbox', href: '/communications?tab=inbox', badge: 3 },
-      { label: 'Outbound', href: '/communications?tab=outbound' },
-    ],
   },
   {
     id: 'analytics',
@@ -98,6 +93,9 @@ const NAV_ADMIN: NavItem[] = [
     icon: <Shield className="h-5 w-5" />,
     children: [
       { label: 'Users & Roles', href: '/users' },
+      { label: 'Care Team', href: '/care-team' },
+      { label: 'Communication Templates', href: '/communication-templates' },
+      { label: 'Privacy & Consent', href: '/privacy-consent' },
       { label: 'Tenant Settings', href: '/settings' },
     ],
   },

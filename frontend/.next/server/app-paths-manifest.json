@@ -1,10 +1,12 @@
 {
-  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
-  "/(dashboard)/tasks/page": "app/(dashboard)/tasks/page.js",
   "/(dashboard)/communications/page": "app/(dashboard)/communications/page.js",
-  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
-  "/(dashboard)/patients/page": "app/(dashboard)/patients/page.js",
-  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(dashboard)/tasks/page": "app/(dashboard)/tasks/page.js",
+  "/(dashboard)/enrollment/page": "app/(dashboard)/enrollment/page.js",
   "/(dashboard)/pathways/page": "app/(dashboard)/pathways/page.js",
-  "/(dashboard)/analytics/page": "app/(dashboard)/analytics/page.js"
+  "/(dashboard)/analytics/page": "app/(dashboard)/analytics/page.js",
+  "/(dashboard)/care-team/page": "app/(dashboard)/care-team/page.js",
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(dashboard)/communication-templates/page": "app/(dashboard)/communication-templates/page.js",
+  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
+  "/(dashboard)/privacy-consent/page": "app/(dashboard)/privacy-consent/page.js"
 }

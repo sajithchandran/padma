@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '.prisma/client-core';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { PrismaService } from '../database/prisma.service';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 
@@ -24,7 +24,7 @@ export interface TaskFilters {
 export class TasksService {
   private readonly logger = new Logger(TasksService.name);
 
-  constructor(private readonly prisma: PrismaCoreService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(
     tenantId: string,

@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiOperation,
+  ApiQuery,
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
@@ -25,6 +26,31 @@ import { SendMessageDto } from './dto/send-message.dto';
 @UseGuards(RolesGuard)
 export class CommunicationController {
   constructor(private readonly communicationService: CommunicationService) {}
+
+  /**
+   * GET /communication/messages
+   * Retrieve paginated message history for the tenant with optional filters.
+   */
+  @Get('communication/messages')
+  @ApiOperation({ summary: 'List tenant communication history with optional filters' })
+  @ApiQuery({ name: 'patientId', required: false, description: 'Filter by patient id' })
+  @ApiQuery({ name: 'direction', required: false, description: 'Filter by inbound or outbound direction' })
+  @ApiQuery({ name: 'channel', required: false, description: 'Filter by communication channel' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by delivery status' })
+  listMessages(
+    @Tenant() tenant: TenantContext,
+    @Query() pagination: PaginationDto,
+    @Query('patientId') patientId?: string,
+    @Query('direction') direction?: string,
+    @Query('channel') channel?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.communicationService.listMessages(
+      tenant.tenantId,
+      { patientId, direction, channel, status },
+      pagination,
+    );
+  }
 
   /**
    * POST /communication/send

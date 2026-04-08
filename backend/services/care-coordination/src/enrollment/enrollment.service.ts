@@ -4,24 +4,30 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { PrismaCoreService } from '../database/prisma-core.service';
+import { randomUUID } from 'crypto';
+import { PrismaService } from '../database/prisma.service';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 import { UpdateEnrollmentDto } from './dto/update-enrollment.dto';
 import { ManualTransitionDto } from './dto/transition.dto';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { StageManagerService } from './stage-manager.service';
-import { Prisma } from '.prisma/client-core';
+import { TransitionEvaluatorService } from '../pathway-engine/transition-evaluator.service';
+import { Prisma } from '.prisma/client';
 
 @Injectable()
 export class EnrollmentService {
   private readonly logger = new Logger(EnrollmentService.name);
 
   constructor(
-    private readonly prisma: PrismaCoreService,
+    private readonly prisma: PrismaService,
     private readonly stageManager: StageManagerService,
+    private readonly transitionEvaluator: TransitionEvaluatorService,
   ) {}
 
   async enroll(tenantId: string, userId: string, dto: CreateEnrollmentDto) {
+    // Auto-generate a patient UUID when no master-patient-index ID is provided
+    const patientId = dto.patientId ?? randomUUID();
+
     const pathway = await this.prisma.clinicalPathway.findFirst({
       where: { id: dto.pathwayId, tenantId, status: 'active' },
       include: {
@@ -66,7 +72,7 @@ export class EnrollmentService {
       const created = await tx.patientPathwayEnrollment.create({
         data: {
           tenantId,
-          patientId: dto.patientId,
+          patientId,
           patientDisplayName: dto.patientDisplayName,
           patientMrn: dto.patientMrn,
           patientGender: dto.patientGender,
@@ -392,6 +398,55 @@ export class EnrollmentService {
       );
 
     return updated;
+  }
+
+  async complete(tenantId: string, id: string, userId: string, reason?: string) {
+    const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({
+      where: { id, tenantId, status: { in: ['active', 'paused'] } },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException(`Active or paused enrollment ${id} not found`);
+    }
+
+    return this.prisma.patientPathwayEnrollment.update({
+      where: { id: enrollment.id },
+      data: {
+        status: 'completed',
+        statusReason: reason ?? 'Pathway completed',
+        actualEndDate: new Date(),
+        updatedBy: userId,
+      },
+      include: {
+        pathway: { select: { id: true, name: true, code: true, category: true } },
+        currentStage: { select: { id: true, name: true, code: true, stageType: true } },
+      },
+    });
+  }
+
+  async getStageHistory(tenantId: string, enrollmentId: string) {
+    const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({
+      where: { id: enrollmentId, tenantId },
+      select: { id: true },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException(`Enrollment ${enrollmentId} not found`);
+    }
+
+    return this.prisma.patientStageHistory.findMany({
+      where: { tenantId, enrollmentId },
+      include: {
+        fromStage: { select: { id: true, name: true, code: true, stageType: true } },
+        toStage: { select: { id: true, name: true, code: true, stageType: true } },
+        transitionRule: { select: { id: true, ruleName: true, triggerType: true } },
+      },
+      orderBy: { transitionedAt: 'desc' },
+    });
+  }
+
+  async getProposedTransitions(tenantId: string, enrollmentId: string) {
+    return this.transitionEvaluator.evaluateForEnrollment(tenantId, enrollmentId);
   }
 
   private async findActiveEnrollment(tenantId: string, id: string) {
