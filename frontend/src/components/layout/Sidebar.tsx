@@ -42,7 +42,6 @@ const NAV_MAIN: NavItem[] = [
     icon: <Users className="h-5 w-5" />,
     children: [
       { label: 'All Patients', href: '/patients' },
-      { label: 'High Risk', href: '/patients?filter=high-risk' },
       { label: 'My Patients', href: '/patients?filter=mine' },
     ],
   },
@@ -52,7 +51,7 @@ const NAV_MAIN: NavItem[] = [
     icon: <Route className="h-5 w-5" />,
     children: [
       { label: 'Active Pathways', href: '/pathways' },
-      { label: 'Templates', href: '/pathways?tab=templates' },
+      { label: 'Pathway Builder', href: '/pathways/new/builder' },
     ],
   },
   {
@@ -62,7 +61,6 @@ const NAV_MAIN: NavItem[] = [
     children: [
       { label: 'My Tasks', href: '/tasks?filter=mine' },
       { label: 'Team Tasks', href: '/tasks?filter=team' },
-      { label: 'Completed', href: '/tasks?filter=completed' },
     ],
   },
   {

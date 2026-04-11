@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database';
 import { ConditionEvaluatorService } from './condition-evaluator.service';
 import { ClinicalDataService } from './clinical-data.service';
+import { TaskGeneratorService } from '../tasks/task-generator.service';
 
 export interface TransitionResult {
   ruleId: string;
@@ -19,6 +20,7 @@ export class TransitionEvaluatorService {
     private readonly prisma: PrismaService,
     private readonly conditionEvaluator: ConditionEvaluatorService,
     private readonly clinicalData: ClinicalDataService,
+    private readonly taskGenerator: TaskGeneratorService,
   ) {}
 
   async evaluateForEnrollment(
@@ -169,6 +171,26 @@ export class TransitionEvaluatorService {
         },
       });
     });
+
+    if (fromStage?.id) {
+      this.taskGenerator
+        .cancelStageTasksPending(tenantId, enrollmentId, fromStage.id)
+        .catch((err) =>
+          this.logger.error(
+            `Failed to cancel pending tasks for enrollment ${enrollmentId}, stage ${fromStage.id}: ${err.message}`,
+            err.stack,
+          ),
+        );
+    }
+
+    this.taskGenerator
+      .generateTasksForStage(tenantId, enrollmentId, toStage.id)
+      .catch((err) =>
+        this.logger.error(
+          `Failed to generate tasks for enrollment ${enrollmentId}, stage ${toStage.id}: ${err.message}`,
+          err.stack,
+        ),
+      );
   }
 
   private buildEvaluationContext(

@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import type { StageNodeData } from '@/types/pathway-builder.types';
 import { STAGE_TYPE_CONFIG } from '../utils/constants';
 import {
@@ -19,9 +19,8 @@ const STAGE_ICONS: Record<string, any> = {
   terminal: CheckCircle2,
 };
 
-function StageNodeComponent({ data, selected }: NodeProps) {
-  const nodeData = data as unknown as StageNodeData;
-  const { stage, interventionCount } = nodeData;
+function StageNodeComponent({ data, selected }: NodeProps<Node<StageNodeData, 'stage'>>) {
+  const { stage, interventionCount } = data;
   const config = STAGE_TYPE_CONFIG[stage.stageType];
   const Icon = STAGE_ICONS[stage.stageType] || Layers;
 

@@ -68,4 +68,11 @@ export class CreateStageDto {
   @IsOptional()
   @IsObject()
   exitActions?: Record<string, any>;
+
+  @ApiPropertyOptional({
+    description: 'Arbitrary stage metadata, including visual builder canvas position',
+  })
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, any>;
 }

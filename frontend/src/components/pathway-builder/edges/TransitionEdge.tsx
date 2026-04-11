@@ -4,6 +4,7 @@ import { memo } from 'react';
 import {
   getSmoothStepPath,
   EdgeLabelRenderer,
+  type Edge,
   type EdgeProps,
 } from '@xyflow/react';
 import type { TransitionEdgeData } from '@/types/pathway-builder.types';
@@ -19,9 +20,8 @@ function TransitionEdgeComponent({
   targetPosition,
   data,
   selected,
-}: EdgeProps) {
-  const edgeData = data as unknown as TransitionEdgeData;
-  const transition = edgeData?.transition;
+}: EdgeProps<Edge<TransitionEdgeData, 'transition'>>) {
+  const transition = data?.transition;
   const triggerConfig = transition
     ? TRIGGER_TYPE_CONFIG[transition.triggerType]
     : TRIGGER_TYPE_CONFIG.manual;

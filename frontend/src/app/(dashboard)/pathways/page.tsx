@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Search, Plus, Route, CheckCircle2, PlayCircle, PauseCircle,
   X, ChevronRight, AlertCircle, Loader2, Layers, Clock,
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge, StatusBadge } from '@/components/ui/Badge';
 import api from '@/lib/api';
+import { fetchNamedCareTeams, type ApiNamedCareTeam } from '@/services/care-team.service';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,10 +36,17 @@ interface Pathway {
   version: number;
   defaultDurationDays: number;
   applicableSettings: string[];
+  careTeamId?: string | null;
+  careTeam?: {
+    id: string;
+    name: string;
+    description?: string | null;
+    _count?: { members: number };
+  } | null;
   createdAt: string;
   updatedAt: string;
   stages: (Stage & { name: string; sortOrder: number })[];
-  _count: { enrollments: number };
+  _count?: { enrollments: number };
 }
 
 interface PathwayMeta { total: number; page: number; limit: number; totalPages: number }
@@ -85,7 +94,7 @@ const CATEGORIES = ['diabetes', 'hypertension', 'cardiac', 'rehab', 'respiratory
 const CARE_SETTINGS = ['outpatient', 'inpatient', 'home_care'];
 
 const BLANK_FORM = {
-  code: '', name: '', description: '', category: '', defaultDurationDays: '90',
+  name: '', description: '', category: '', defaultDurationDays: '90',
   applicableSettings: ['outpatient'] as string[],
 };
 
@@ -94,12 +103,21 @@ const BLANK_STAGE = {
   sortOrder: 1, expectedDurationDays: '',
 };
 
-function CreatePathwayModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function CreatePathwayModal({
+  onClose,
+  onSuccess,
+  careTeams,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+  careTeams: ApiNamedCareTeam[];
+}) {
   const [form, setForm]     = useState(BLANK_FORM);
   const [stages, setStages] = useState([{ ...BLANK_STAGE, stageType: 'entry', sortOrder: 1 }]);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
   const [step, setStep]     = useState<'info' | 'stages'>('info');
+  const [careTeamId, setCareTeamId] = useState('');
 
   const set = (k: keyof typeof BLANK_FORM, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -124,7 +142,7 @@ function CreatePathwayModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     setStages((prev) => prev.filter((_, idx) => idx !== i).map((s, idx) => ({ ...s, sortOrder: idx + 1 })));
   }
 
-  const infoValid = form.code.trim() && form.name.trim() && form.category &&
+  const infoValid = form.name.trim() && form.category &&
     Number(form.defaultDurationDays) > 0 && form.applicableSettings.length > 0;
 
   const stagesValid = stages.length > 0 &&
@@ -138,12 +156,12 @@ function CreatePathwayModal({ onClose, onSuccess }: { onClose: () => void; onSuc
     setError(null);
     try {
       await api.post('/pathways', {
-        code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         category: form.category,
         defaultDurationDays: Number(form.defaultDurationDays),
         applicableSettings: form.applicableSettings,
+        careTeamId: careTeamId || undefined,
         stages: stages.map((s) => ({
           code: s.code.trim().toUpperCase(),
           name: s.name.trim(),
@@ -212,20 +230,17 @@ function CreatePathwayModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 
             {step === 'info' && (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1.5">Code <span className="text-red-500">*</span></label>
-                    <input value={form.code} onChange={(e) => set('code', e.target.value)} placeholder="e.g. DM-MGMT-002"
-                      className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1.5">Category <span className="text-red-500">*</span></label>
-                    <select value={form.category} onChange={(e) => set('category', e.target.value)}
-                      className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition">
-                      <option value="">Select…</option>
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                    </select>
-                  </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                  Pathway code will be generated automatically on create using the tenant pathway code format.
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Category <span className="text-red-500">*</span></label>
+                  <select value={form.category} onChange={(e) => set('category', e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition">
+                    <option value="">Select…</option>
+                    {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                  </select>
                 </div>
 
                 <div>
@@ -258,6 +273,25 @@ function CreatePathwayModal({ onClose, onSuccess }: { onClose: () => void; onSuc
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Default Care Team</label>
+                  <select
+                    value={careTeamId}
+                    onChange={(e) => setCareTeamId(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
+                  >
+                    <option value="">No default care team</option>
+                    {careTeams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name} ({team.memberCount} members)
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Reuse a named care team as the default team for new enrollments in this pathway.
+                  </p>
                 </div>
               </>
             )}
@@ -358,14 +392,51 @@ function CreatePathwayModal({ onClose, onSuccess }: { onClose: () => void; onSuc
 
 // ─── Pathway Detail Drawer ─────────────────────────────────────────────────────
 
-function PathwayDetailDrawer({ pathway, onClose }: { pathway: Pathway; onClose: () => void }) {
+function PathwayDetailDrawer({
+  pathway,
+  onClose,
+  careTeams,
+  onPathwayUpdated,
+}: {
+  pathway: Pathway;
+  onClose: () => void;
+  careTeams: ApiNamedCareTeam[];
+  onPathwayUpdated: (pathway: Pathway) => void;
+}) {
   const cat = getCategoryStyle(pathway.category);
+  const [selectedCareTeamId, setSelectedCareTeamId] = useState(pathway.careTeamId ?? '');
+  const [savingCareTeam, setSavingCareTeam] = useState(false);
+  const [careTeamError, setCareTeamError] = useState<string | null>(null);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [onClose]);
+
+  useEffect(() => {
+    setSelectedCareTeamId(pathway.careTeamId ?? '');
+    setCareTeamError(null);
+  }, [pathway.careTeamId, pathway.id]);
+
+  async function handleSaveCareTeam() {
+    if (pathway.status === 'active') return;
+
+    setSavingCareTeam(true);
+    setCareTeamError(null);
+
+    try {
+      const res = await api.put<Pathway>(`/pathways/${pathway.id}`, {
+        careTeamId: selectedCareTeamId || null,
+      });
+      onPathwayUpdated(res.data);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setCareTeamError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Failed to update care team mapping.'));
+    } finally {
+      setSavingCareTeam(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -394,6 +465,16 @@ function PathwayDetailDrawer({ pathway, onClose }: { pathway: Pathway; onClose: 
           </button>
         </div>
 
+        <div className="px-6 py-3 border-b border-slate-100 bg-slate-50">
+          <Link
+            href={`/pathways/${pathway.id}/builder`}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+          >
+            <Settings className="h-4 w-4" />
+            Open Builder
+          </Link>
+        </div>
+
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
           {/* Key metrics */}
@@ -401,7 +482,7 @@ function PathwayDetailDrawer({ pathway, onClose }: { pathway: Pathway; onClose: 
             {[
               { icon: <Clock className="h-4 w-4 text-slate-400" />, label: 'Duration', value: fmtDuration(pathway.defaultDurationDays) },
               { icon: <Layers className="h-4 w-4 text-slate-400" />, label: 'Stages', value: pathway.stages.length },
-              { icon: <Users className="h-4 w-4 text-slate-400" />, label: 'Enrolled', value: pathway._count.enrollments },
+              { icon: <Users className="h-4 w-4 text-slate-400" />, label: 'Enrolled', value: pathway._count?.enrollments ?? 0 },
             ].map((m) => (
               <div key={m.label} className="bg-slate-50 rounded-xl p-3 text-center">
                 <div className="flex justify-center mb-1">{m.icon}</div>
@@ -421,6 +502,51 @@ function PathwayDetailDrawer({ pathway, onClose }: { pathway: Pathway; onClose: 
                 </span>
               ))}
             </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Default Care Team</p>
+            {pathway.status === 'draft' ? (
+              <div className="space-y-3">
+                <select
+                  value={selectedCareTeamId}
+                  onChange={(e) => setSelectedCareTeamId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
+                >
+                  <option value="">No default care team</option>
+                  {careTeams.map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name} ({team.memberCount} members)
+                    </option>
+                  ))}
+                </select>
+                {careTeamError && <p className="text-xs text-red-600">{careTeamError}</p>}
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs text-slate-500">
+                    Draft pathways can map a named care team that enrollment can reuse later.
+                  </p>
+                  <button
+                    onClick={handleSaveCareTeam}
+                    disabled={savingCareTeam}
+                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {savingCareTeam ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-sm font-medium text-slate-900">
+                  {pathway.careTeam?.name ?? 'No default care team mapped'}
+                </p>
+                {pathway.careTeam && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    {pathway.careTeam._count?.members ?? 0} members
+                    {pathway.careTeam.description ? ` · ${pathway.careTeam.description}` : ''}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Stages timeline */}
@@ -550,7 +676,7 @@ function PathwayCard({ pathway, onClick }: { pathway: Pathway; onClick: () => vo
             <p className="text-[10px] text-slate-400">Duration</p>
           </div>
           <div className="text-center">
-            <p className="text-sm font-bold text-slate-900">{pathway._count.enrollments}</p>
+            <p className="text-sm font-bold text-slate-900">{pathway._count?.enrollments ?? 0}</p>
             <p className="text-[10px] text-slate-400">Enrolled</p>
           </div>
           <div className="text-center">
@@ -576,6 +702,7 @@ export default function PathwaysPage() {
   const [categoryFilter, setCatFilter] = useState('ALL');
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected]     = useState<Pathway | null>(null);
+  const [careTeams, setCareTeams]   = useState<ApiNamedCareTeam[]>([]);
 
   const fetchPathways = useCallback(async () => {
     setLoading(true);
@@ -594,6 +721,11 @@ export default function PathwaysPage() {
   }, [categoryFilter]);
 
   useEffect(() => { fetchPathways(); }, [fetchPathways]);
+  useEffect(() => {
+    fetchNamedCareTeams()
+      .then(setCareTeams)
+      .catch(() => setCareTeams([]));
+  }, []);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return pathways;
@@ -610,7 +742,7 @@ export default function PathwaysPage() {
     total:    pathways.length,
     active:   pathways.filter((p) => p.status === 'active').length,
     draft:    pathways.filter((p) => p.status === 'draft').length,
-    enrolled: pathways.reduce((s, p) => s + p._count.enrollments, 0),
+    enrolled: pathways.reduce((s, p) => s + (p._count?.enrollments ?? 0), 0),
   }), [pathways]);
 
   return (
@@ -737,7 +869,17 @@ export default function PathwaysPage() {
 
       {/* Detail drawer */}
       {selected && (
-        <PathwayDetailDrawer pathway={selected} onClose={() => setSelected(null)} />
+        <PathwayDetailDrawer
+          pathway={selected}
+          onClose={() => setSelected(null)}
+          careTeams={careTeams}
+          onPathwayUpdated={(updated) => {
+            setSelected(updated);
+            setPathways((current) => current.map((item) => (
+              item.id === updated.id ? { ...item, ...updated, _count: updated._count ?? item._count } : item
+            )));
+          }}
+        />
       )}
 
       {/* Create modal */}
@@ -745,6 +887,7 @@ export default function PathwaysPage() {
         <CreatePathwayModal
           onClose={() => setShowCreate(false)}
           onSuccess={() => { setShowCreate(false); fetchPathways(); }}
+          careTeams={careTeams}
         />
       )}
     </div>

@@ -146,6 +146,7 @@ export class TaskGeneratorService {
 
     if (tasksToCreate.length > 0) {
       await this.prisma.careTask.createMany({ data: tasksToCreate as any });
+      await this.recalculateEnrollmentTaskCounts(tenantId, enrollmentId);
       this.logger.log(
         `Generated ${tasksToCreate.length} tasks for enrollment ${enrollmentId}, stage ${stageId}`,
       );
@@ -194,6 +195,8 @@ export class TaskGeneratorService {
         })),
       }),
     ]);
+
+    await this.recalculateEnrollmentTaskCounts(tenantId, enrollmentId);
 
     this.logger.log(
       `Cancelled ${tasksToCancel.length} pending/upcoming tasks for enrollment ${enrollmentId}, stage ${stageId}`,
@@ -335,5 +338,41 @@ export class TaskGeneratorService {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
     return d;
+  }
+
+  private async recalculateEnrollmentTaskCounts(tenantId: string, enrollmentId: string) {
+    const today = new Date();
+    const [totalTasks, completedTasks, overdueTasks] = await Promise.all([
+      this.prisma.careTask.count({
+        where: {
+          tenantId,
+          enrollmentId,
+          status: { notIn: ['cancelled', 'skipped'] },
+        },
+      }),
+      this.prisma.careTask.count({
+        where: { tenantId, enrollmentId, status: 'completed' },
+      }),
+      this.prisma.careTask.count({
+        where: {
+          tenantId,
+          enrollmentId,
+          status: { notIn: ['completed', 'cancelled', 'skipped'] },
+          dueDate: { lt: today },
+        },
+      }),
+    ]);
+
+    await this.prisma.patientPathwayEnrollment.update({
+      where: { id: enrollmentId },
+      data: {
+        totalTasks,
+        completedTasks,
+        overdueTasks,
+        adherencePercent: totalTasks > 0
+          ? Number(((completedTasks / totalTasks) * 100).toFixed(2))
+          : undefined,
+      },
+    });
   }
 }

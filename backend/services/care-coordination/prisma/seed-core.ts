@@ -92,6 +92,81 @@ const SYSTEM_ROLES = [
   { code: 'viewer',           name: 'Viewer',              description: 'Read-only access with anonymized patient data' },
 ];
 
+const CARE_TASK_TEMPLATES = [
+  {
+    name: 'Initial Nurse Assessment',
+    interventionType: 'assessment',
+    description: 'Baseline nursing assessment to capture symptoms, vitals, and immediate care needs.',
+    careSetting: 'outpatient',
+    deliveryMode: 'in_person',
+    frequencyType: 'once',
+    startDayOffset: 0,
+    endDayOffset: 0,
+    defaultOwnerRole: 'nurse',
+    priority: 3,
+    isCritical: true,
+    reminderConfig: { beforeDueDays: [0] },
+  },
+  {
+    name: 'Physician Consultation',
+    interventionType: 'consultation',
+    description: 'Physician review for diagnosis confirmation and treatment planning.',
+    careSetting: 'outpatient',
+    deliveryMode: 'in_person',
+    frequencyType: 'once',
+    startDayOffset: 1,
+    endDayOffset: 3,
+    defaultOwnerRole: 'physician',
+    priority: 4,
+    isCritical: true,
+    reminderConfig: { beforeDueDays: [1, 0] },
+  },
+  {
+    name: 'HbA1c Lab Test',
+    interventionType: 'lab_test',
+    description: 'Laboratory HbA1c test for baseline or interval glycemic control review.',
+    careSetting: 'outpatient',
+    deliveryMode: 'in_person',
+    frequencyType: 'once',
+    startDayOffset: 0,
+    endDayOffset: 7,
+    defaultOwnerRole: 'care_coordinator',
+    autoCompleteSource: 'athma_lab',
+    autoCompleteEventType: 'lab_result.available',
+    priority: 4,
+    isCritical: false,
+    reminderConfig: { beforeDueDays: [2, 0] },
+  },
+  {
+    name: 'Weekly Care Coordinator Follow-up',
+    interventionType: 'follow_up',
+    description: 'Weekly coordination follow-up call to review adherence, symptoms, and blockers.',
+    careSetting: 'home_care',
+    deliveryMode: 'telehealth',
+    frequencyType: 'weekly',
+    startDayOffset: 7,
+    endDayOffset: 84,
+    defaultOwnerRole: 'care_coordinator',
+    priority: 2,
+    isCritical: false,
+    reminderConfig: { beforeDueDays: [1, 0] },
+  },
+  {
+    name: 'Patient Education Session',
+    interventionType: 'education',
+    description: 'Structured education session covering disease knowledge, lifestyle, and red flags.',
+    careSetting: 'any',
+    deliveryMode: 'telehealth',
+    frequencyType: 'once',
+    startDayOffset: 2,
+    endDayOffset: 14,
+    defaultOwnerRole: 'care_coordinator',
+    priority: 2,
+    isCritical: false,
+    reminderConfig: { beforeDueDays: [2] },
+  },
+];
+
 // ─── Seed ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -190,6 +265,34 @@ async function main() {
     console.log('   Created admin UserTenantRole.');
   } else {
     console.log('   Admin UserTenantRole already exists — skipped.');
+  }
+
+  // 7. Reusable care task template library
+  console.log(`   Upserting ${CARE_TASK_TEMPLATES.length} care task templates...`);
+  for (const template of CARE_TASK_TEMPLATES) {
+    const existingTemplate = await prisma.careTaskTemplate.findFirst({
+      where: { tenantId: tenant.id, name: template.name },
+    });
+
+    if (existingTemplate) {
+      await prisma.careTaskTemplate.update({
+        where: { id: existingTemplate.id },
+        data: {
+          ...template,
+          updatedBy: user.id,
+        },
+      });
+      continue;
+    }
+
+    await prisma.careTaskTemplate.create({
+      data: {
+        tenantId: tenant.id,
+        ...template,
+        createdBy: user.id,
+        updatedBy: user.id,
+      },
+    });
   }
 
   console.log('✅  Seed complete.');

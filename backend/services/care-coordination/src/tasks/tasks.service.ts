@@ -248,6 +248,67 @@ export class TasksService {
     return this.findOne(tenantId, id);
   }
 
+  async updateStatus(
+    tenantId: string,
+    id: string,
+    userId: string,
+    status: string,
+    notes?: string,
+  ) {
+    const normalizedStatus = status.toLowerCase();
+
+    if (normalizedStatus === 'completed') {
+      return this.complete(tenantId, id, userId, {
+        completionNotes: notes,
+        completionMethod: 'manual',
+      });
+    }
+
+    if (normalizedStatus === 'skipped') {
+      return this.skip(tenantId, id, userId, notes ?? 'Skipped by coordinator');
+    }
+
+    if (normalizedStatus === 'cancelled') {
+      return this.cancel(tenantId, id, userId, notes ?? 'Cancelled by coordinator');
+    }
+
+    if (!['pending', 'upcoming', 'active'].includes(normalizedStatus)) {
+      throw new BadRequestException(`Unsupported task status '${status}'`);
+    }
+
+    const task = await this.findTaskOrThrow(tenantId, id);
+
+    if (['completed', 'cancelled', 'skipped'].includes(task.status)) {
+      throw new BadRequestException(
+        `Task ${id} is ${task.status} and cannot be moved to ${normalizedStatus}`,
+      );
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.careTask.update({
+        where: { id },
+        data: {
+          status: normalizedStatus,
+          completionNotes: notes ?? task.completionNotes,
+          updatedBy: userId,
+        },
+      }),
+      this.prisma.careTaskEvent.create({
+        data: {
+          tenantId,
+          taskId: id,
+          eventType: 'status_changed',
+          fromStatus: task.status,
+          toStatus: normalizedStatus,
+          payload: { notes },
+          performedBy: userId,
+        },
+      }),
+    ]);
+
+    return this.findOne(tenantId, id);
+  }
+
   async escalate(tenantId: string, id: string, userId: string) {
     const task = await this.findTaskOrThrow(tenantId, id);
     const now = new Date();

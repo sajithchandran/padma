@@ -200,8 +200,9 @@ model CareTeam {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy   String?  @map("updated_by") @db.Uuid
 
-  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  members CareTeamMember[]
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members  CareTeamMember[]
+  pathways ClinicalPathway[]
 
   @@unique([tenantId, name], name: "uq_care_team_tenant_name")
   @@index([tenantId, isActive, name])
@@ -246,6 +247,7 @@ model ClinicalPathway {
 
   externalSourceSystem String? @map("external_source_system") @db.VarChar(50)
   externalSourceId     String? @map("external_source_id") @db.VarChar(255)
+  careTeamId           String? @map("care_team_id") @db.Uuid
 
   status   String  @default("draft") @db.VarChar(20)
   isActive Boolean @default(true) @map("is_active")
@@ -258,10 +260,12 @@ model ClinicalPathway {
   stages      PathwayStage[]
   transitions StageTransitionRule[]
   enrollments PatientPathwayEnrollment[]
+  careTeam    CareTeam? @relation(fields: [careTeamId], references: [id])
 
   @@unique([tenantId, code, version], name: "uq_pathway_tenant_code_version")
   @@index([tenantId, category, isActive])
   @@index([tenantId, status])
+  @@index([tenantId, careTeamId])
   @@map("clinical_pathways")
 }
 
@@ -348,6 +352,49 @@ model StageInterventionTemplate {
 
   @@index([tenantId, stageId, sortOrder])
   @@map("stage_intervention_templates")
+}
+
+// ============================================================
+// CARE TASK TEMPLATE — tenant-level reusable source for stage interventions
+// ============================================================
+
+model CareTaskTemplate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  interventionType String @map("intervention_type") @db.VarChar(30)
+  name             String @db.VarChar(255)
+  description      String? @db.Text
+
+  careSetting  String @default("any") @map("care_setting") @db.VarChar(20)
+  deliveryMode String @default("in_person") @map("delivery_mode") @db.VarChar(30)
+
+  frequencyType  String @map("frequency_type") @db.VarChar(20)
+  frequencyValue Int?   @map("frequency_value")
+
+  startDayOffset Int  @default(0) @map("start_day_offset")
+  endDayOffset   Int? @map("end_day_offset")
+
+  defaultOwnerRole String? @map("default_owner_role") @db.VarChar(50)
+
+  autoCompleteSource    String? @map("auto_complete_source") @db.VarChar(30)
+  autoCompleteEventType String? @map("auto_complete_event_type") @db.VarChar(100)
+
+  priority   Int     @default(2) @db.SmallInt
+  isCritical Boolean @default(false) @map("is_critical")
+  isActive   Boolean @default(true) @map("is_active")
+
+  reminderConfig Json? @map("reminder_config") @db.JsonB
+  metadata       Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy String?  @map("created_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@index([tenantId, isActive, name])
+  @@index([tenantId, interventionType, careSetting])
+  @@map("care_task_templates")
 }
 
 // ============================================================

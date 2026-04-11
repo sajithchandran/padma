@@ -30,4 +30,13 @@ export class UpdateTenantDto {
   @IsEmail()
   @IsOptional()
   contactEmail?: string;
+
+  @ApiPropertyOptional({
+    description: 'Pathway code format. Supported tokens: {YYYY}, {YY}, {CATEGORY}, {SEQ4}, {SEQ3}, {SEQ}',
+    example: 'PW-{YYYY}-{SEQ4}',
+  })
+  @IsString()
+  @MaxLength(100)
+  @IsOptional()
+  pathwayCodeFormat?: string;
 }

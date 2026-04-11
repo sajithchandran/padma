@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Plus, Clock, AlertCircle } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Search, Plus, Clock, AlertCircle, UserCheck, X } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { StatusBadge, PriorityBadge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import type { TaskStatus } from '@/types';
-import { fetchTasks, type ApiTask } from '@/services/tasks.service';
+import { fetchTask, fetchTasks, reassignTask, updateTaskStatus, type ApiTask } from '@/services/tasks.service';
+import { fetchUsers, type ApiUserMembership } from '@/services/users.service';
 
 const STATUS_COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
   { status: 'PENDING',     label: 'Pending',     color: 'border-amber-400' },
@@ -20,6 +21,13 @@ const STATUS_COLUMNS: { status: TaskStatus; label: string; color: string }[] = [
 ];
 
 const PRIORITY_ORDER: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+const EDITABLE_STATUSES = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'active', label: 'In Progress' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'skipped', label: 'Skipped' },
+  { value: 'cancelled', label: 'Cancelled' },
+] as const;
 
 type ViewTask = {
   id: string;
@@ -27,6 +35,8 @@ type ViewTask = {
   patientName?: string;
   pathwayName?: string;
   assignedTo?: string;
+  assignedToUserId?: string | null;
+  assignedToRole?: string | null;
   dueDate: string;
   priority: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
   status: TaskStatus;
@@ -66,10 +76,156 @@ function formatDueDate(value: string) {
   }).format(date);
 }
 
+function TaskDetailDrawer({
+  taskId,
+  onClose,
+}: {
+  taskId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [nextStatus, setNextStatus] = useState('');
+  const [notes, setNotes] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const taskQuery = useQuery({
+    queryKey: ['task', taskId],
+    queryFn: () => fetchTask(taskId),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: () => updateTaskStatus(taskId, {
+      status: nextStatus as any,
+      completionNotes: notes.trim() || undefined,
+      completionMethod: nextStatus === 'completed' ? 'manual' : undefined,
+    }),
+    onSuccess: async () => {
+      setError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['task', taskId] }),
+        queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+        queryClient.invalidateQueries({ queryKey: ['patients'] }),
+      ]);
+      setNotes('');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      setError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Failed to update task status.'));
+    },
+  });
+
+  const task = taskQuery.data;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex h-full w-full max-w-xl flex-col overflow-hidden bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Task Details</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-900">{task?.title ?? 'Loading task...'}</h2>
+            {task?.patientDisplayName && <p className="mt-1 text-sm text-slate-500">{task.patientDisplayName}</p>}
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {taskQuery.isLoading ? (
+            <div className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Loading task details...</div>
+          ) : !task ? (
+            <div className="rounded-xl bg-red-50 p-5 text-sm text-red-600">Unable to load task.</div>
+          ) : (
+            <>
+              <Card>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500">Status</p>
+                    <div className="mt-1"><StatusBadge status={mapStatus(task)} /></div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Priority</p>
+                    <div className="mt-1"><PriorityBadge priority={mapPriority(task.priority, task.isCritical)} /></div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Due Date</p>
+                    <p className="mt-1 font-medium text-slate-900">{formatDueDate(task.dueDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Assigned</p>
+                    <p className="mt-1 font-medium text-slate-900">
+                      {task.assignedToUserId || task.assignedToRole || 'Unassigned'}
+                    </p>
+                  </div>
+                </div>
+                {task.description && (
+                  <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">{task.description}</p>
+                )}
+              </Card>
+
+              <Card>
+                <h3 className="text-sm font-semibold text-slate-900">Change Status</h3>
+                <div className="mt-3 space-y-3">
+                  <select
+                    value={nextStatus}
+                    onChange={(event) => setNextStatus(event.target.value)}
+                    className="h-10 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  >
+                    <option value="">Select next status...</option>
+                    {EDITABLE_STATUSES.map((status) => (
+                      <option key={status.value} value={status.value}>{status.label}</option>
+                    ))}
+                  </select>
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    rows={3}
+                    placeholder="Optional note..."
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  />
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  <Button
+                    disabled={!nextStatus || statusMutation.isPending}
+                    loading={statusMutation.isPending}
+                    onClick={() => statusMutation.mutate()}
+                  >
+                    Save Status
+                  </Button>
+                </div>
+              </Card>
+
+              <Card>
+                <h3 className="text-sm font-semibold text-slate-900">Audit Events</h3>
+                <div className="mt-3 space-y-3">
+                  {(task.taskEvents ?? []).map((event) => (
+                    <div key={event.id} className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-sm font-medium text-slate-900">{event.eventType}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {event.fromStatus || '-'} {'->'} {event.toStatus || '-'} · {formatDueDate(event.createdAt)}
+                        {event.performedBy ? ` · by ${event.performedBy}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                  {(task.taskEvents ?? []).length === 0 && (
+                    <p className="text-sm text-slate-500">No task events recorded yet.</p>
+                  )}
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TasksPage() {
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const [search, setSearch] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const filter = searchParams.get('filter');
   const currentUserId = typeof window !== 'undefined'
     ? sessionStorage.getItem('padma_user_id')
@@ -88,12 +244,35 @@ export default function TasksPage() {
     }),
   });
 
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    enabled: filter === 'team',
+  });
+
+  const reassignMutation = useMutation({
+    mutationFn: ({
+      taskId,
+      assignedToUserId,
+      assignedToRole,
+    }: {
+      taskId: string;
+      assignedToUserId?: string | null;
+      assignedToRole?: string | null;
+    }) => reassignTask(taskId, { assignedToUserId, assignedToRole }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
   const tasks = useMemo<ViewTask[]>(() => (response?.data ?? []).map((task) => ({
     id: task.id,
     title: task.title,
     patientName: task.patientDisplayName ?? undefined,
     pathwayName: task.interventionTemplate?.name ?? undefined,
     assignedTo: task.assignedToUserId === currentUserId ? 'Me' : (task.assignedToRole || task.assignedToUserId || undefined),
+    assignedToUserId: task.assignedToUserId,
+    assignedToRole: task.assignedToRole,
     dueDate: formatDueDate(task.dueDate),
     priority: mapPriority(task.priority, task.isCritical),
     status: mapStatus(task),
@@ -104,6 +283,60 @@ export default function TasksPage() {
       const q = search.toLowerCase();
       return !q || t.title.toLowerCase().includes(q) || t.patientName?.toLowerCase().includes(q);
     }), [tasks, search]);
+
+  function userLabel(user: ApiUserMembership) {
+    return user.displayName?.trim()
+      || [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+      || user.email;
+  }
+
+  function assignToMe(task: ViewTask) {
+    if (!currentUserId) return;
+    reassignMutation.mutate({
+      taskId: task.id,
+      assignedToUserId: currentUserId,
+      assignedToRole: null,
+    });
+  }
+
+  function assignToUser(task: ViewTask, userId: string) {
+    reassignMutation.mutate({
+      taskId: task.id,
+      assignedToUserId: userId || null,
+      assignedToRole: userId ? null : task.assignedToRole ?? null,
+    });
+  }
+
+  function AssignmentControls({ task }: { task: ViewTask }) {
+    if (filter !== 'team') return null;
+
+    return (
+      <div className="mt-3 flex flex-col gap-2">
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={!currentUserId || task.assignedToUserId === currentUserId || reassignMutation.isPending}
+          onClick={() => assignToMe(task)}
+          icon={<UserCheck className="h-3.5 w-3.5" />}
+        >
+          Assign to me
+        </Button>
+        <select
+          value={task.assignedToUserId ?? ''}
+          disabled={reassignMutation.isPending}
+          onChange={(event) => assignToUser(task, event.target.value)}
+          className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+        >
+          <option value="">Assign to team member...</option>
+          {users.map((user) => (
+            <option key={`${user.userId}-${user.roleId}`} value={user.userId}>
+              {userLabel(user)} ({user.roleName})
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -166,7 +399,11 @@ export default function TasksPage() {
                 </div>
                 <div className="space-y-2.5 min-h-[120px]">
                   {colTasks.map((task) => (
-                    <div key={task.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group">
+                    <div
+                      key={task.id}
+                      className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer group"
+                      onClick={() => setSelectedTaskId(task.id)}
+                    >
                       <div className="flex items-start justify-between gap-2 mb-2">
                         <PriorityBadge priority={task.priority} />
                         {task.priority === 'URGENT' && (
@@ -187,6 +424,9 @@ export default function TasksPage() {
                         </div>
                         {task.assignedTo && <Avatar name={task.assignedTo} size="xs" />}
                       </div>
+                      <div onClick={(event) => event.stopPropagation()}>
+                        <AssignmentControls task={task} />
+                      </div>
                     </div>
                   ))}
                   {colTasks.length === 0 && (
@@ -205,14 +445,14 @@ export default function TasksPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
-                {['Task', 'Patient', 'Pathway', 'Priority', 'Status', 'Due', 'Assigned To'].map((h) => (
+                {['Task', 'Patient', 'Pathway', 'Priority', 'Status', 'Due', 'Assigned To', ...(filter === 'team' ? ['Assign'] : [])].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {filtered.map((task) => (
-                <tr key={task.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={task.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setSelectedTaskId(task.id)}>
                   <td className="px-4 py-3.5 font-medium text-slate-900 max-w-[200px]">
                     <p className="truncate">{task.title}</p>
                     {task.priority === 'URGENT' && (
@@ -237,6 +477,11 @@ export default function TasksPage() {
                       </div>
                     ) : '—'}
                   </td>
+                  {filter === 'team' && (
+                    <td className="px-4 py-3.5 min-w-[220px]" onClick={(event) => event.stopPropagation()}>
+                      <AssignmentControls task={task} />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -245,6 +490,12 @@ export default function TasksPage() {
             <div className="p-8 text-center text-sm text-slate-500">No tasks found.</div>
           )}
         </Card>
+      )}
+      {selectedTaskId && (
+        <TaskDetailDrawer
+          taskId={selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+        />
       )}
     </div>
   );

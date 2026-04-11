@@ -9,7 +9,7 @@
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:migrate:dev": "prisma migrate dev --schema=prisma/schema.prisma",
     "prisma:migrate:prod": "prisma migrate deploy --schema=prisma/schema.prisma",
-    "prisma:seed": "node prisma/seed.js",
+    "prisma:seed": "ts-node prisma/seed-core.ts",
     "build": "npm run prisma:generate && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

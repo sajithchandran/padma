@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { CreatePathwayDto } from './dto/create-pathway.dto';
@@ -12,14 +13,95 @@ import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 export class PathwaysService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private normalizeCode(value: string) {
+    return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  private async generatePathwayCode(tenantId: string, category: string) {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { featureFlags: true },
+    });
+    const featureFlags = (tenant?.featureFlags ?? {}) as Record<string, unknown>;
+    const configuredFormat = typeof featureFlags.pathwayCodeFormat === 'string'
+      ? featureFlags.pathwayCodeFormat
+      : 'PW-{YYYY}-{SEQ4}';
+    const now = new Date();
+    const year = String(now.getFullYear());
+    const categoryCode = this.normalizeCode(category || 'PATHWAY').slice(0, 6) || 'PATH';
+
+    const sequenceCount = await this.prisma.clinicalPathway.count({ where: { tenantId } });
+
+    for (let offset = 1; offset <= 1000; offset += 1) {
+      const sequence = sequenceCount + offset;
+      const code = this.normalizeCode(configuredFormat
+        .replaceAll('{YYYY}', year)
+        .replaceAll('{YY}', year.slice(-2))
+        .replaceAll('{CATEGORY}', categoryCode)
+        .replaceAll('{SEQ4}', String(sequence).padStart(4, '0'))
+        .replaceAll('{SEQ3}', String(sequence).padStart(3, '0'))
+        .replaceAll('{SEQ}', String(sequence)));
+
+      const existing = await this.prisma.clinicalPathway.findFirst({
+        where: { tenantId, code, version: 1 },
+        select: { id: true },
+      });
+      if (!existing) return code;
+    }
+
+    throw new ConflictException('Unable to generate a unique pathway code. Update the tenant pathway code format.');
+  }
+
+  private async validateCareTeam(tenantId: string, careTeamId?: string | null) {
+    if (!careTeamId) return null;
+
+    const careTeam = await this.prisma.careTeam.findFirst({
+      where: {
+        id: careTeamId,
+        tenantId,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    if (!careTeam) {
+      throw new BadRequestException('Selected care team is not available for this tenant.');
+    }
+
+    return careTeam;
+  }
+
   async create(tenantId: string, userId: string, dto: CreatePathwayDto) {
     const { stages, ...pathwayData } = dto;
+    const version = 1;
+    const code = pathwayData.code?.trim()
+      ? this.normalizeCode(pathwayData.code)
+      : await this.generatePathwayCode(tenantId, pathwayData.category);
+
+    await this.validateCareTeam(tenantId, dto.careTeamId);
+
+    const existing = await this.prisma.clinicalPathway.findFirst({
+      where: {
+        tenantId,
+        code,
+        version,
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new ConflictException(
+        `Pathway code "${code}" already exists for version ${version}. Use a different code or clone the existing pathway.`,
+      );
+    }
 
     return this.prisma.clinicalPathway.create({
       data: {
         tenantId,
         createdBy: userId,
+        version,
         ...pathwayData,
+        code,
         applicableSettings: dto.applicableSettings ?? [],
         stages: stages?.length
           ? {
@@ -57,6 +139,14 @@ export class PathwaysService {
             select: { id: true, code: true, name: true, stageType: true, careSetting: true, sortOrder: true },
             orderBy: { sortOrder: 'asc' },
           },
+          careTeam: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              _count: { select: { members: true } },
+            },
+          },
           _count: { select: { enrollments: true } },
         },
       }),
@@ -91,6 +181,15 @@ export class PathwaysService {
           },
           orderBy: { priority: 'asc' },
         },
+        careTeam: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            isActive: true,
+            _count: { select: { members: true } },
+          },
+        },
       },
     });
 
@@ -115,6 +214,7 @@ export class PathwaysService {
     }
 
     const { stages, ...pathwayData } = dto;
+    await this.validateCareTeam(tenantId, dto.careTeamId);
 
     return this.prisma.clinicalPathway.update({
       where: { id },
@@ -122,7 +222,18 @@ export class PathwaysService {
         ...pathwayData,
         updatedBy: userId,
       },
-      include: { stages: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        stages: { orderBy: { sortOrder: 'asc' } },
+        careTeam: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            isActive: true,
+            _count: { select: { members: true } },
+          },
+        },
+      },
     });
   }
 
@@ -216,6 +327,7 @@ export class PathwaysService {
           defaultDurationDays: source.defaultDurationDays,
           externalSourceSystem: source.externalSourceSystem,
           externalSourceId: source.externalSourceId,
+          careTeamId: source.careTeamId,
           status: 'draft',
           createdBy: userId,
         },

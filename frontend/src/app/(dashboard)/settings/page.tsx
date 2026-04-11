@@ -40,6 +40,7 @@ export default function SettingsPage() {
     timezone: '',
     locale: '',
     contactEmail: '',
+    pathwayCodeFormat: 'PW-{YYYY}-{SEQ4}',
   });
 
   const { data: tenant, isLoading, isError, error } = useQuery({
@@ -63,6 +64,9 @@ export default function SettingsPage() {
       timezone: tenant.timezone ?? '',
       locale: tenant.locale ?? '',
       contactEmail: tenant.contactEmail ?? '',
+      pathwayCodeFormat: typeof tenant.featureFlags?.pathwayCodeFormat === 'string'
+        ? tenant.featureFlags.pathwayCodeFormat
+        : 'PW-{YYYY}-{SEQ4}',
     });
   }, [tenant]);
 
@@ -80,6 +84,7 @@ export default function SettingsPage() {
       timezone: generalForm.timezone.trim() || undefined,
       locale: generalForm.locale.trim() || undefined,
       contactEmail: generalForm.contactEmail.trim() || undefined,
+      pathwayCodeFormat: generalForm.pathwayCodeFormat.trim() || 'PW-{YYYY}-{SEQ4}',
     }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['tenant-settings'] });
@@ -170,6 +175,12 @@ export default function SettingsPage() {
                 <Input label="Locale" value={generalForm.locale} onChange={(e) => setGeneralForm((prev) => ({ ...prev, locale: e.target.value }))} />
                 <Input label="Contact Email" type="email" value={generalForm.contactEmail} onChange={(e) => setGeneralForm((prev) => ({ ...prev, contactEmail: e.target.value }))} />
               </div>
+              <Input
+                label="Pathway Code Format"
+                value={generalForm.pathwayCodeFormat}
+                onChange={(e) => setGeneralForm((prev) => ({ ...prev, pathwayCodeFormat: e.target.value }))}
+                hint="Supported tokens: {YYYY}, {YY}, {CATEGORY}, {SEQ4}, {SEQ3}, {SEQ}. Example: PW-{YYYY}-{SEQ4}"
+              />
             </div>
             <div className="mt-5 flex justify-end">
               <Button onClick={() => generalMutation.mutate()} loading={generalMutation.isPending} icon={<Save className="h-4 w-4" />}>Save Changes</Button>

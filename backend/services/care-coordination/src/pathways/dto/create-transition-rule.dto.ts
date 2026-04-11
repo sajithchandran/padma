@@ -52,6 +52,11 @@ export class CreateTransitionRuleDto {
   @IsBoolean()
   isAutomatic?: boolean;
 
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsObject()

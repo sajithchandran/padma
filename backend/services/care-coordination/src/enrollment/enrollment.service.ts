@@ -13,6 +13,7 @@ import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { StageManagerService } from './stage-manager.service';
 import { TransitionEvaluatorService } from '../pathway-engine/transition-evaluator.service';
 import { Prisma } from '.prisma/client';
+import { TaskGeneratorService } from '../tasks/task-generator.service';
 
 @Injectable()
 export class EnrollmentService {
@@ -22,6 +23,7 @@ export class EnrollmentService {
     private readonly prisma: PrismaService,
     private readonly stageManager: StageManagerService,
     private readonly transitionEvaluator: TransitionEvaluatorService,
+    private readonly taskGenerator: TaskGeneratorService,
   ) {}
 
   async enroll(tenantId: string, userId: string, dto: CreateEnrollmentDto) {
@@ -35,6 +37,30 @@ export class EnrollmentService {
           where: { stageType: 'entry' },
           orderBy: { sortOrder: 'asc' },
           take: 1,
+        },
+        careTeam: {
+          include: {
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    displayName: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
+                role: {
+                  select: {
+                    code: true,
+                    name: true,
+                  },
+                },
+              },
+              orderBy: { addedAt: 'asc' },
+            },
+          },
         },
       },
     });
@@ -67,6 +93,17 @@ export class EnrollmentService {
     }
 
     const now = new Date();
+    const defaultCareTeam = pathway.careTeam?.members.map((member) => {
+      const fallbackName = [member.user.firstName, member.user.lastName].filter(Boolean).join(' ').trim();
+      return {
+        userId: member.user.id,
+        role: member.role.code,
+        name: member.user.displayName?.trim() || fallbackName || member.user.email,
+      };
+    }) ?? [];
+    const careTeamSnapshot = dto.careTeam ?? defaultCareTeam;
+    const primaryCoordinatorId = dto.primaryCoordinatorId
+      ?? pathway.careTeam?.members.find((member) => member.role.code === 'care_coordinator')?.userId;
 
     const enrollment = await this.prisma.$transaction(async (tx) => {
       const created = await tx.patientPathwayEnrollment.create({
@@ -89,9 +126,9 @@ export class EnrollmentService {
           currentCareSetting: entryStage.careSetting !== 'any'
             ? entryStage.careSetting
             : 'outpatient',
-          primaryCoordinatorId: dto.primaryCoordinatorId,
-          careTeam: (dto.careTeam ?? []) as unknown as Prisma.InputJsonValue,
-          status: 'active',
+          primaryCoordinatorId,
+          careTeam: careTeamSnapshot as unknown as Prisma.InputJsonValue,
+          status: 'pending',
           athmaPatientId: dto.athmaPatientId,
           athmaProductId: dto.athmaProductId,
           notes: dto.notes,
@@ -103,34 +140,97 @@ export class EnrollmentService {
         },
       });
 
+      return created;
+    });
+
+    return enrollment;
+  }
+
+  async start(tenantId: string, id: string, userId: string) {
+    const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({
+      where: { id, tenantId, status: { in: ['pending', 'active'] } },
+      include: {
+        pathway: {
+          include: {
+            stages: {
+              where: { stageType: 'entry' },
+              orderBy: { sortOrder: 'asc' },
+              take: 1,
+            },
+          },
+        },
+        stageHistory: {
+          where: { transitionType: 'start' },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException(`Startable enrollment ${id} not found`);
+    }
+
+    if (enrollment.status === 'active' && enrollment.stageHistory.length > 0) {
+      throw new BadRequestException(`Enrollment ${id} is already started`);
+    }
+
+    const entryStage = enrollment.pathway.stages[0];
+    if (!entryStage) {
+      throw new BadRequestException(
+        `Pathway ${enrollment.pathway.name} has no entry stage configured`,
+      );
+    }
+
+    const now = new Date();
+    const updated = await this.prisma.$transaction(async (tx) => {
       await tx.patientStageHistory.create({
         data: {
           tenantId,
-          enrollmentId: created.id,
+          enrollmentId: enrollment.id,
           fromStageId: null,
           fromStageName: null,
           toStageId: entryStage.id,
           toStageName: entryStage.name,
-          transitionType: 'initial_enrollment',
-          reason: 'Patient enrolled into pathway',
+          transitionType: 'start',
+          reason: 'Pathway started',
           performedBy: userId,
         },
       });
 
-      return created;
+      return tx.patientPathwayEnrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          status: 'active',
+          statusReason: null,
+          currentStageId: entryStage.id,
+          previousStageId: null,
+          currentStageEnteredAt: now,
+          currentCareSetting:
+            entryStage.careSetting !== 'any'
+              ? entryStage.careSetting
+              : enrollment.currentCareSetting,
+          updatedBy: userId,
+        },
+        include: {
+          pathway: { select: { id: true, name: true, code: true, category: true } },
+          currentStage: { select: { id: true, name: true, code: true, stageType: true } },
+        },
+      });
     });
 
-    // Execute entry actions asynchronously (fire-and-forget with error logging)
     this.stageManager
       .executeEntryActions(tenantId, enrollment.id, entryStage)
       .catch((err) =>
         this.logger.error(
-          `Failed to execute entry actions for enrollment ${enrollment.id}: ${err.message}`,
+          `Failed entry actions for enrollment ${enrollment.id}: ${err.message}`,
           err.stack,
         ),
       );
 
-    return enrollment;
+    await this.taskGenerator.generateTasksForStage(tenantId, enrollment.id, entryStage.id);
+
+    return updated;
   }
 
   async findAll(
@@ -320,6 +420,17 @@ export class EnrollmentService {
     dto: ManualTransitionDto,
   ) {
     const enrollment = await this.findActiveEnrollment(tenantId, id);
+    const blockingTaskCount = await this.countBlockingStageTasks(
+      tenantId,
+      enrollment.id,
+      enrollment.currentStageId,
+    );
+
+    if (blockingTaskCount > 0) {
+      throw new BadRequestException(
+        'Complete all current-stage tasks before moving to the next stage.',
+      );
+    }
 
     // Validate toStageId belongs to the same pathway
     const targetStage = await this.prisma.pathwayStage.findFirst({
@@ -386,6 +497,15 @@ export class EnrollmentService {
             err.stack,
           ),
         );
+
+      this.taskGenerator
+        .cancelStageTasksPending(tenantId, enrollment.id, previousStage.id)
+        .catch((err) =>
+          this.logger.error(
+            `Failed to cancel pending tasks for enrollment ${enrollment.id}, stage ${previousStage.id}: ${err.message}`,
+            err.stack,
+          ),
+        );
     }
 
     this.stageManager
@@ -393,6 +513,15 @@ export class EnrollmentService {
       .catch((err) =>
         this.logger.error(
           `Failed entry actions for stage ${targetStage.id}: ${err.message}`,
+          err.stack,
+        ),
+      );
+
+    this.taskGenerator
+      .generateTasksForStage(tenantId, enrollment.id, targetStage.id)
+      .catch((err) =>
+        this.logger.error(
+          `Failed to generate tasks for enrollment ${enrollment.id}, stage ${targetStage.id}: ${err.message}`,
           err.stack,
         ),
       );
@@ -447,6 +576,94 @@ export class EnrollmentService {
 
   async getProposedTransitions(tenantId: string, enrollmentId: string) {
     return this.transitionEvaluator.evaluateForEnrollment(tenantId, enrollmentId);
+  }
+
+  async getTransitionReadiness(tenantId: string, enrollmentId: string) {
+    const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({
+      where: { id: enrollmentId, tenantId },
+      include: {
+        currentStage: { select: { id: true, name: true, code: true, stageType: true, sortOrder: true } },
+      },
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException(`Enrollment ${enrollmentId} not found`);
+    }
+
+    if (enrollment.status !== 'active') {
+      return {
+        canTransition: false,
+        blockingTaskCount: 0,
+        currentStageId: enrollment.currentStageId,
+        currentStage: enrollment.currentStage,
+        nextStages: [],
+        reason: 'Enrollment is not active',
+      };
+    }
+
+    const blockingTaskCount = await this.countBlockingStageTasks(
+      tenantId,
+      enrollment.id,
+      enrollment.currentStageId,
+    );
+
+    const transitionTargets = await this.prisma.stageTransitionRule.findMany({
+      where: {
+        tenantId,
+        pathwayId: enrollment.pathwayId,
+        fromStageId: enrollment.currentStageId,
+        isActive: true,
+      },
+      include: {
+        toStage: { select: { id: true, name: true, code: true, stageType: true, sortOrder: true } },
+      },
+      orderBy: { priority: 'asc' },
+    });
+
+    const nextByRule = transitionTargets.map((rule) => ({
+      ...rule.toStage,
+      transitionRuleId: rule.id,
+      ruleName: rule.ruleName,
+    }));
+
+    const nextByOrder = nextByRule.length > 0
+      ? []
+      : await this.prisma.pathwayStage.findMany({
+          where: {
+            tenantId,
+            pathwayId: enrollment.pathwayId,
+            sortOrder: { gt: enrollment.currentStage.sortOrder },
+          },
+          select: { id: true, name: true, code: true, stageType: true, sortOrder: true },
+          orderBy: { sortOrder: 'asc' },
+          take: 1,
+        });
+
+    return {
+      canTransition: blockingTaskCount === 0,
+      blockingTaskCount,
+      currentStageId: enrollment.currentStageId,
+      currentStage: enrollment.currentStage,
+      nextStages: nextByRule.length > 0 ? nextByRule : nextByOrder,
+      reason: blockingTaskCount > 0
+        ? 'Complete all current-stage tasks before moving to the next stage.'
+        : null,
+    };
+  }
+
+  private async countBlockingStageTasks(
+    tenantId: string,
+    enrollmentId: string,
+    stageId: string,
+  ) {
+    return this.prisma.careTask.count({
+      where: {
+        tenantId,
+        enrollmentId,
+        stageId,
+        status: { notIn: ['completed', 'cancelled', 'skipped'] },
+      },
+    });
   }
 
   private async findActiveEnrollment(tenantId: string, id: string) {

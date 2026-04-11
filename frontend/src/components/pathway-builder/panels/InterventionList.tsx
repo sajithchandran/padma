@@ -15,6 +15,7 @@ import {
   createIntervention,
   updateIntervention,
   deleteIntervention,
+  createCareTaskTemplate,
 } from '@/services/pathway.service';
 import { INTERVENTION_TYPES } from '../utils/constants';
 
@@ -24,12 +25,19 @@ interface InterventionListProps {
 }
 
 export function InterventionList({ stageId, isReadOnly }: InterventionListProps) {
+  const isTempStage = stageId.startsWith('temp_stage_');
   const [interventions, setInterventions] = useState<ApiIntervention[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingIntervention, setEditingIntervention] = useState<ApiIntervention | undefined>();
 
   const load = async () => {
+    if (isTempStage) {
+      setInterventions([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const data = await fetchInterventions(stageId);
@@ -43,11 +51,35 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
 
   useEffect(() => {
     load();
-  }, [stageId]);
+  }, [isTempStage, stageId]);
 
   const handleCreate = async (data: any) => {
+    const {
+      saveToLibrary,
+      sourceTemplateId,
+      sourceTemplateName,
+      ...payload
+    } = data;
+
+    let libraryTemplateId = sourceTemplateId ?? null;
+    let libraryTemplateName = sourceTemplateName ?? null;
+
+    if (saveToLibrary) {
+      const createdTemplate = await createCareTaskTemplate({
+        ...payload,
+      });
+      libraryTemplateId = createdTemplate.id;
+      libraryTemplateName = createdTemplate.name;
+    }
+
     await createIntervention(stageId, {
-      ...data,
+      ...payload,
+      metadata: libraryTemplateId
+        ? {
+            libraryTemplateId,
+            libraryTemplateName,
+          }
+        : undefined,
       sortOrder: interventions.length,
     });
     await load();
@@ -55,7 +87,13 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
 
   const handleUpdate = async (data: any) => {
     if (!editingIntervention) return;
-    await updateIntervention(editingIntervention.id, data);
+    const {
+      saveToLibrary: _saveToLibrary,
+      sourceTemplateId: _sourceTemplateId,
+      sourceTemplateName: _sourceTemplateName,
+      ...payload
+    } = data;
+    await updateIntervention(editingIntervention.id, payload);
     setEditingIntervention(undefined);
     await load();
   };
@@ -78,11 +116,17 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
 
   return (
     <div className="p-4">
-      {interventions.length === 0 ? (
+      {isTempStage && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Save the pathway first to persist this new stage, then add interventions for it.
+        </div>
+      )}
+
+      {!isTempStage && interventions.length === 0 ? (
         <div className="text-center py-6 text-sm text-slate-400">
           No interventions defined yet
         </div>
-      ) : (
+      ) : !isTempStage ? (
         <div className="space-y-2">
           {interventions.map((inv) => (
             <div
@@ -102,6 +146,11 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
                   <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
                     {getTypeLabel(inv.interventionType)}
                   </span>
+                  {inv.metadata?.libraryTemplateName && (
+                    <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                      {String(inv.metadata.libraryTemplateName)}
+                    </span>
+                  )}
                   <span className="text-[10px] text-slate-400">
                     {inv.frequencyType} | Day {inv.startDayOffset}
                     {inv.endDayOffset != null ? `–${inv.endDayOffset}` : '+'}
@@ -130,9 +179,9 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
-      {!isReadOnly && (
+      {!isReadOnly && !isTempStage && (
         <button
           onClick={() => {
             setEditingIntervention(undefined);

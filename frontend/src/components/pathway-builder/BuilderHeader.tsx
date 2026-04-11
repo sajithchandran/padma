@@ -38,6 +38,11 @@ export function BuilderHeader() {
           {pathway.status}
         </span>
         <span className="text-[10px] text-slate-400">v{pathway.version}</span>
+        {pathway.careTeam?.name && (
+          <span className="text-[10px] rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
+            Team: {pathway.careTeam.name}
+          </span>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-2">

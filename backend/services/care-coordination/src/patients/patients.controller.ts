@@ -11,6 +11,19 @@ import { PatientsService } from './patients.service';
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
 
+  @Get()
+  @Roles('admin', 'supervisor', 'care_coordinator')
+  @ApiOperation({ summary: 'List enrolled patients for the tenant' })
+  @ApiQuery({ name: 'q', required: false, description: 'Search by patient name, MRN, or pathway name' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by aggregated patient status' })
+  findAll(
+    @Tenant() tenant: TenantContext,
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.patientsService.findAll(tenant.tenantId, { q, status });
+  }
+
   @Get('search')
   @Roles('admin', 'supervisor', 'care_coordinator')
   @ApiOperation({ summary: 'Search patients by name or MRN from tenant enrollment snapshots' })

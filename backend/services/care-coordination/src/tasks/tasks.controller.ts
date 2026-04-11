@@ -19,7 +19,6 @@ import {
 import { Tenant, Roles } from '../common/decorators';
 import type { TenantContext } from '../common/decorators';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { TasksService } from './tasks.service';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 
@@ -44,7 +43,10 @@ export class TasksController {
   @ApiQuery({ name: 'careSetting', required: false })
   findAll(
     @Tenant() tenant: TenantContext,
-    @Query() pagination: PaginationDto,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortOrder') sortOrder?: 'asc' | 'desc',
     @Query('patientId') patientId?: string,
     @Query('enrollmentId') enrollmentId?: string,
     @Query('stageId') stageId?: string,
@@ -66,7 +68,12 @@ export class TasksController {
         dueDateTo: dueDateTo ? new Date(dueDateTo) : undefined,
         careSetting,
       },
-      pagination,
+      {
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
+        sortBy,
+        sortOrder,
+      },
     );
   }
 
@@ -79,12 +86,16 @@ export class TasksController {
   findForPatient360(
     @Tenant() tenant: TenantContext,
     @Param('patientId', ParseUUIDPipe) patientId: string,
-    @Query() pagination: PaginationDto,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.tasksService.findForPatient360(
       tenant.tenantId,
       patientId,
-      pagination,
+      {
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
+      },
     );
   }
 
@@ -99,14 +110,18 @@ export class TasksController {
   findForEnrollment(
     @Tenant() tenant: TenantContext,
     @Param('enrollmentId', ParseUUIDPipe) enrollmentId: string,
-    @Query() pagination: PaginationDto,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @Query('status') status?: string,
     @Query('stageId') stageId?: string,
   ) {
     return this.tasksService.findAll(
       tenant.tenantId,
       { enrollmentId, status, stageId },
-      pagination,
+      {
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
+      },
     );
   }
 
@@ -135,28 +150,13 @@ export class TasksController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateTaskStatusDto,
   ) {
-    // Route to the correct service method based on status
-    switch (dto.status) {
-      case 'completed':
-        return this.tasksService.complete(tenant.tenantId, id, tenant.userId, dto);
-      case 'skipped':
-        return this.tasksService.skip(
-          tenant.tenantId,
-          id,
-          tenant.userId,
-          dto.completionNotes ?? 'Skipped by coordinator',
-        );
-      case 'cancelled':
-        return this.tasksService.cancel(
-          tenant.tenantId,
-          id,
-          tenant.userId,
-          dto.completionNotes ?? 'Cancelled by coordinator',
-        );
-      default:
-        // For pending / upcoming / active status changes
-        return this.tasksService.complete(tenant.tenantId, id, tenant.userId, dto);
-    }
+    return this.tasksService.updateStatus(
+      tenant.tenantId,
+      id,
+      tenant.userId,
+      dto.status,
+      dto.completionNotes,
+    );
   }
 
   // -----------------------------------------------------------------------

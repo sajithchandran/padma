@@ -49,6 +49,32 @@ export interface ApiIntervention {
   updatedAt: string;
 }
 
+export interface ApiCareTaskTemplate {
+  id: string;
+  tenantId: string;
+  interventionType: string;
+  name: string;
+  description?: string | null;
+  careSetting: string;
+  deliveryMode: string;
+  frequencyType: string;
+  frequencyValue?: number | null;
+  startDayOffset: number;
+  endDayOffset?: number | null;
+  defaultOwnerRole?: string | null;
+  autoCompleteSource?: string | null;
+  autoCompleteEventType?: string | null;
+  priority: number;
+  isCritical: boolean;
+  isActive: boolean;
+  reminderConfig?: any;
+  metadata?: any;
+  createdAt: string;
+  createdBy?: string | null;
+  updatedAt: string;
+  updatedBy?: string | null;
+}
+
 export interface ApiTransition {
   id: string;
   tenantId: string;
@@ -81,6 +107,14 @@ export interface ApiPathway {
   defaultDurationDays: number;
   externalSourceSystem?: string | null;
   externalSourceId?: string | null;
+  careTeamId?: string | null;
+  careTeam?: {
+    id: string;
+    name: string;
+    description?: string | null;
+    isActive?: boolean;
+    _count?: { members: number };
+  } | null;
   status: 'draft' | 'active' | 'deprecated';
   isActive: boolean;
   createdAt: string;
@@ -94,14 +128,14 @@ export interface ApiPathway {
 
 // ─── Builder-specific types ──────────────────────────────────────────────────
 
-export interface StageNodeData {
+export interface StageNodeData extends Record<string, unknown> {
   stage: ApiStage;
   interventionCount: number;
   isSelected: boolean;
   isReadOnly: boolean;
 }
 
-export interface TransitionEdgeData {
+export interface TransitionEdgeData extends Record<string, unknown> {
   transition: ApiTransition;
   isSelected: boolean;
   isReadOnly: boolean;

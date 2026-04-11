@@ -1,5 +1,16 @@
 {
   "pages": {
+    "/login/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/login/page.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
     "/(dashboard)/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
@@ -10,61 +21,31 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/layout.js"
     ],
-    "/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/css/app/layout.css",
-      "static/chunks/app/layout.js"
-    ],
-    "/(dashboard)/communications/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/communications/page.js"
-    ],
     "/(dashboard)/settings/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/settings/page.js"
     ],
-    "/(dashboard)/privacy-consent/page": [
+    "/(dashboard)/pathways/[id]/builder/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/privacy-consent/page.js"
+      "static/css/app/(dashboard)/pathways/[id]/builder/page.css",
+      "static/chunks/app/(dashboard)/pathways/[id]/builder/page.js"
     ],
-    "/(dashboard)/pathways/page": [
+    "/(dashboard)/pathways/[id]/builder/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/pathways/page.js"
-    ],
-    "/(dashboard)/tasks/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/tasks/page.js"
+      "static/chunks/app/(dashboard)/pathways/[id]/builder/layout.js"
     ],
     "/(dashboard)/enrollment/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/enrollment/page.js"
     ],
-    "/(dashboard)/analytics/page": [
+    "/(dashboard)/communications/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/analytics/page.js"
-    ],
-    "/(dashboard)/users/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/users/page.js"
-    ],
-    "/(dashboard)/care-team/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/care-team/page.js"
-    ],
-    "/(dashboard)/communication-templates/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/communication-templates/page.js"
+      "static/chunks/app/(dashboard)/communications/page.js"
     ]
   }
 }

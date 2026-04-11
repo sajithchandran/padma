@@ -111,6 +111,15 @@ export class EnrollmentController {
     return this.enrollmentService.getProposedTransitions(tenant.tenantId, id);
   }
 
+  @Get('enrollments/:id/transition-readiness')
+  @ApiOperation({ summary: 'Check whether the enrollment can move from the current stage' })
+  getTransitionReadiness(
+    @Tenant() tenant: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.enrollmentService.getTransitionReadiness(tenant.tenantId, id);
+  }
+
   @Get('enrollments/:id')
   @ApiOperation({ summary: 'Get enrollment detail (pathway, current stage, task summary, stage history)' })
   findOne(@Tenant() tenant: TenantContext, @Param('id', ParseUUIDPipe) id: string) {
@@ -144,6 +153,14 @@ export class EnrollmentController {
   @ApiOperation({ summary: 'Resume a paused enrollment' })
   resume(@Tenant() tenant: TenantContext, @Param('id', ParseUUIDPipe) id: string) {
     return this.enrollmentService.resume(tenant.tenantId, id, tenant.userId);
+  }
+
+  @Post('enrollments/:id/start')
+  @Roles('admin', 'supervisor', 'care_coordinator')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Start a pending enrollment and enter the pathway entry stage' })
+  start(@Tenant() tenant: TenantContext, @Param('id', ParseUUIDPipe) id: string) {
+    return this.enrollmentService.start(tenant.tenantId, id, tenant.userId);
   }
 
   @Post('enrollments/:id/cancel')

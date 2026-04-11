@@ -4,6 +4,7 @@ import type {
   ApiStage,
   ApiIntervention,
   ApiTransition,
+  ApiCareTaskTemplate,
 } from '@/types/pathway-builder.types';
 
 // ─── Pathway CRUD ───────────────────────────────────────────────────────────
@@ -13,9 +14,38 @@ export async function fetchPathway(id: string): Promise<ApiPathway> {
   return data;
 }
 
+export async function createPathway(payload: {
+  code?: string;
+  name: string;
+  description?: string;
+  category: string;
+  defaultDurationDays: number;
+  applicableSettings?: string[];
+  externalSourceSystem?: string;
+  externalSourceId?: string;
+  careTeamId?: string;
+  stages?: Array<{
+    code: string;
+    name: string;
+    description?: string;
+    stageType: string;
+    careSetting: string;
+    sortOrder: number;
+    expectedDurationDays?: number;
+    minDurationDays?: number;
+    autoTransition?: boolean;
+    entryActions?: any;
+    exitActions?: any;
+    metadata?: Record<string, any>;
+  }>;
+}): Promise<ApiPathway> {
+  const { data } = await api.post('/pathways', payload);
+  return data;
+}
+
 export async function updatePathway(
   id: string,
-  payload: Partial<Pick<ApiPathway, 'name' | 'description' | 'category' | 'defaultDurationDays' | 'applicableSettings'>>,
+  payload: Partial<Pick<ApiPathway, 'name' | 'description' | 'category' | 'defaultDurationDays' | 'applicableSettings' | 'careTeamId'>>,
 ) {
   const { data } = await api.put(`/pathways/${id}`, payload);
   return data;
@@ -128,6 +158,8 @@ export async function createIntervention(
     autoCompleteEventType?: string;
     priority: number;
     isCritical?: boolean;
+    reminderConfig?: Record<string, any>;
+    metadata?: Record<string, any>;
     sortOrder: number;
   },
 ): Promise<ApiIntervention> {
@@ -152,6 +184,8 @@ export async function updateIntervention(
     autoCompleteEventType: string | null;
     priority: number;
     isCritical: boolean;
+    reminderConfig: Record<string, any> | null;
+    metadata: Record<string, any> | null;
     sortOrder: number;
   }>,
 ): Promise<ApiIntervention> {
@@ -212,5 +246,47 @@ export async function updateTransition(
 
 export async function deleteTransition(id: string) {
   const { data } = await api.delete(`/pathways/transitions/${id}`);
+  return data;
+}
+
+// ─── Care Task Template master CRUD ────────────────────────────────────────
+
+export async function fetchCareTaskTemplates(filters?: {
+  q?: string;
+  interventionType?: string;
+  careSetting?: string;
+  activeOnly?: boolean;
+}): Promise<ApiCareTaskTemplate[]> {
+  const params = new URLSearchParams();
+  if (filters?.q) params.set('q', filters.q);
+  if (filters?.interventionType) params.set('interventionType', filters.interventionType);
+  if (filters?.careSetting) params.set('careSetting', filters.careSetting);
+  if (filters?.activeOnly !== undefined) params.set('activeOnly', String(filters.activeOnly));
+  const query = params.toString();
+  const { data } = await api.get(`/care-task-templates${query ? `?${query}` : ''}`);
+  return data;
+}
+
+export async function createCareTaskTemplate(
+  payload: {
+    name: string;
+    interventionType: string;
+    description?: string;
+    careSetting: string;
+    deliveryMode: string;
+    frequencyType: string;
+    frequencyValue?: number | null;
+    startDayOffset: number;
+    endDayOffset?: number | null;
+    defaultOwnerRole?: string | null;
+    autoCompleteSource?: string | null;
+    autoCompleteEventType?: string | null;
+    priority: number;
+    isCritical?: boolean;
+    reminderConfig?: Record<string, any>;
+    metadata?: Record<string, any>;
+  },
+): Promise<ApiCareTaskTemplate> {
+  const { data } = await api.post('/care-task-templates', payload);
   return data;
 }

@@ -69,22 +69,26 @@ export const TRIGGER_TYPE_CONFIG: Record<
 export const INTERVENTION_TYPES = [
   { value: 'consultation', label: 'Consultation' },
   { value: 'lab_test', label: 'Lab Test' },
-  { value: 'imaging', label: 'Imaging' },
   { value: 'medication', label: 'Medication' },
-  { value: 'procedure', label: 'Procedure' },
+  { value: 'therapy', label: 'Therapy' },
+  { value: 'nutrition', label: 'Nutrition' },
   { value: 'education', label: 'Patient Education' },
   { value: 'assessment', label: 'Assessment' },
-  { value: 'referral', label: 'Referral' },
   { value: 'follow_up', label: 'Follow-up' },
-  { value: 'monitoring', label: 'Monitoring' },
+  { value: 'vital_signs', label: 'Vital Signs' },
+  { value: 'device_reading', label: 'Device Reading' },
+  { value: 'telehealth', label: 'Telehealth' },
+  { value: 'home_visit', label: 'Home Visit' },
+  { value: 'bedside_monitoring', label: 'Bedside Monitoring' },
+  { value: 'discharge_planning', label: 'Discharge Planning' },
 ] as const;
 
 export const DELIVERY_MODES = [
   { value: 'in_person', label: 'In Person' },
   { value: 'telehealth', label: 'Telehealth' },
   { value: 'remote_monitoring', label: 'Remote Monitoring' },
-  { value: 'self_service', label: 'Self Service' },
-  { value: 'automated', label: 'Automated' },
+  { value: 'self_report', label: 'Self Report' },
+  { value: 'app_based', label: 'App Based' },
 ] as const;
 
 export const FREQUENCY_TYPES = [
@@ -93,7 +97,8 @@ export const FREQUENCY_TYPES = [
   { value: 'weekly', label: 'Weekly' },
   { value: 'biweekly', label: 'Bi-Weekly' },
   { value: 'monthly', label: 'Monthly' },
-  { value: 'as_needed', label: 'As Needed' },
+  { value: 'quarterly', label: 'Quarterly' },
+  { value: 'custom_days', label: 'Custom Days' },
 ] as const;
 
 export const CARE_SETTINGS = [

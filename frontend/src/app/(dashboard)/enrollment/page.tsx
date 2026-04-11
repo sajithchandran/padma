@@ -19,8 +19,16 @@ interface Pathway {
   name: string;
   code: string;
   category: string;
+  status: string;
   defaultDurationDays: number;
   stages: { id: string; name: string; stageType: string }[];
+  careTeamId?: string | null;
+  careTeam?: {
+    id: string;
+    name: string;
+    description?: string | null;
+    _count?: { members: number };
+  } | null;
 }
 
 interface Enrollment {
@@ -77,10 +85,14 @@ const BLANK = {
 
 function EnrollModal({
   pathways,
+  pathwaysLoading,
+  pathwaysError,
   onClose,
   onSuccess,
 }: {
   pathways: Pathway[];
+  pathwaysLoading: boolean;
+  pathwaysError: string | null;
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -91,7 +103,8 @@ function EnrollModal({
   const set = (k: keyof typeof BLANK, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const selectedPathway = pathways.find((p) => p.id === form.pathwayId);
-  const isValid = form.patientDisplayName.trim() && form.pathwayId;
+  const activePathways = pathways.filter((pathway) => pathway.status === 'active');
+  const isValid = form.patientDisplayName.trim() && form.pathwayId && selectedPathway?.status === 'active';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -232,15 +245,26 @@ function EnrollModal({
                     value={form.pathwayId}
                     onChange={(e) => set('pathwayId', e.target.value)}
                     required
+                    disabled={pathwaysLoading || Boolean(pathwaysError)}
                     className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
                   >
-                    <option value="">Select a pathway…</option>
+                    <option value="">
+                      {pathwaysLoading ? 'Loading pathways…' : 'Select a pathway…'}
+                    </option>
                     {pathways.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.defaultDurationDays}d)
+                      <option key={p.id} value={p.id} disabled={p.status !== 'active'}>
+                        {p.name} ({p.defaultDurationDays}d){p.status !== 'active' ? ` - ${p.status}, publish first` : ''}
                       </option>
                     ))}
                   </select>
+                  {pathwaysError && (
+                    <p className="mt-2 text-xs text-red-600">{pathwaysError}</p>
+                  )}
+                  {!pathwaysLoading && !pathwaysError && activePathways.length === 0 && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      No active pathways are available for enrollment. Publish a pathway before enrolling a patient.
+                    </p>
+                  )}
                   {selectedPathway && (
                     <div className="mt-2 p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700 space-y-1">
                       <div className="flex items-center gap-2">
@@ -250,6 +274,21 @@ function EnrollModal({
                         <span>{selectedPathway.defaultDurationDays} days duration</span>
                       </div>
                       <p className="text-blue-600">{selectedPathway.stages.length} stages · starts at "{selectedPathway.stages.find(s => s.stageType === 'entry')?.name ?? selectedPathway.stages[0]?.name}"</p>
+                      {selectedPathway.status !== 'active' && (
+                        <p className="text-amber-700">
+                          This pathway is {selectedPathway.status}. It must be published before enrollment.
+                        </p>
+                      )}
+                      {selectedPathway.careTeam ? (
+                        <p className="text-blue-600">
+                          Default care team: <span className="font-semibold">{selectedPathway.careTeam.name}</span>
+                          {' '}({selectedPathway.careTeam._count?.members ?? 0} members)
+                        </p>
+                      ) : (
+                        <p className="text-amber-700">
+                          No default care team mapped to this pathway.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -316,15 +355,33 @@ export default function EnrollmentPage() {
   const [enrollments, setEnrollments]   = useState<Enrollment[]>([]);
   const [meta, setMeta]                 = useState<EnrollmentMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [pathways, setPathways]         = useState<Pathway[]>([]);
+  const [pathwaysLoading, setPathwaysLoading] = useState(true);
+  const [pathwaysError, setPathwaysError] = useState<string | null>(null);
   const [loadingList, setLoadingList]   = useState(true);
   const [listError, setListError]       = useState<string | null>(null);
 
-  // Load pathways once for the form dropdown
+  // Load pathways once for the form dropdown. Drafts are shown but disabled,
+  // so users can see why a pathway cannot be selected for enrollment yet.
   useEffect(() => {
     let cancelled = false;
-    api.get('/pathways', { params: { limit: 50 } })
-      .then((r) => { if (!cancelled) setPathways(r.data.data ?? []); })
-      .catch(() => {});
+
+    setPathwaysLoading(true);
+    setPathwaysError(null);
+
+    api.get('/pathways', { params: { limit: 100, sortBy: 'name', sortOrder: 'asc' } })
+      .then((r) => {
+        if (!cancelled) setPathways(r.data.data ?? []);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          const msg = err?.response?.data?.message;
+          setPathwaysError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Failed to load pathways.'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPathwaysLoading(false);
+      });
+
     return () => { cancelled = true; };
   }, []);
 
@@ -387,7 +444,7 @@ export default function EnrollmentPage() {
             { label: 'Total Enrollments', value: stats.total, icon: <ClipboardList className="h-5 w-5 text-blue-500" />, bg: 'bg-blue-50' },
             { label: 'Active', value: stats.active, icon: <TrendingUp className="h-5 w-5 text-emerald-500" />, bg: 'bg-emerald-50' },
             { label: 'Completed', value: stats.completed, icon: <CheckCircle2 className="h-5 w-5 text-violet-500" />, bg: 'bg-violet-50' },
-            { label: 'Pathways Available', value: pathways.length, icon: <ClipboardList className="h-5 w-5 text-amber-500" />, bg: 'bg-amber-50' },
+            { label: 'Active Pathways', value: pathways.filter((p) => p.status === 'active').length, icon: <ClipboardList className="h-5 w-5 text-amber-500" />, bg: 'bg-amber-50' },
           ].map((s) => (
             <Card key={s.label} padding="sm">
               <div className="flex items-center gap-3">
@@ -418,10 +475,10 @@ export default function EnrollmentPage() {
               </div>
               <div className="flex gap-2">
                 <div className="flex bg-slate-100 p-1 rounded-lg gap-1">
-                  {['ALL', 'ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED'].map((s) => (
+                  {['ALL', 'PENDING', 'ACTIVE', 'COMPLETED', 'PAUSED', 'CANCELLED'].map((s) => (
                     <button key={s} onClick={() => setStatusFilter(s)}
                       className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${statusFilter === s ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                      {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
+                      {s === 'ALL' ? 'All' : s === 'PENDING' ? 'Not Started' : s.charAt(0) + s.slice(1).toLowerCase()}
                     </button>
                   ))}
                 </div>
@@ -541,10 +598,24 @@ export default function EnrollmentPage() {
                         {p.category}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{p.stages.length} stages · {p.defaultDurationDays} days</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {p.stages.length} stages · {p.defaultDurationDays} days · {p.status}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {p.careTeam ? `Default team: ${p.careTeam.name}` : 'No default care team'}
+                    </p>
                   </button>
                 ))}
-                {pathways.length === 0 && (
+                {pathwaysLoading && (
+                  <div className="py-4 flex items-center justify-center gap-2 text-xs text-slate-400">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading pathways…
+                  </div>
+                )}
+                {!pathwaysLoading && pathwaysError && (
+                  <p className="text-xs text-red-500 text-center py-4">{pathwaysError}</p>
+                )}
+                {!pathwaysLoading && !pathwaysError && pathways.length === 0 && (
                   <p className="text-xs text-slate-400 text-center py-4">No pathways available</p>
                 )}
               </div>
@@ -558,6 +629,8 @@ export default function EnrollmentPage() {
       {showModal && (
         <EnrollModal
           pathways={pathways}
+          pathwaysLoading={pathwaysLoading}
+          pathwaysError={pathwaysError}
           onClose={() => setShowModal(false)}
           onSuccess={() => {
             setShowModal(false);

@@ -4,10 +4,10 @@ import { CANVAS_CONFIG } from './constants';
 
 const elk = new ELK();
 
-export async function autoLayout(
-  nodes: Node[],
-  edges: Edge[],
-): Promise<Node[]> {
+export async function autoLayout<TNode extends Node, TEdge extends Edge>(
+  nodes: TNode[],
+  edges: TEdge[],
+): Promise<TNode[]> {
   const graph = {
     id: 'root',
     layoutOptions: {

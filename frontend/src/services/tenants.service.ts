@@ -12,7 +12,7 @@ export interface ApiTenant {
   contactEmail?: string | null;
   oidcIssuer?: string | null;
   oidcClientId?: string | null;
-  featureFlags?: Record<string, boolean>;
+  featureFlags?: Record<string, unknown>;
 }
 
 export async function fetchCurrentTenant(): Promise<ApiTenant> {
@@ -31,6 +31,7 @@ export async function updateCurrentTenant(payload: {
   timezone?: string;
   locale?: string;
   contactEmail?: string;
+  pathwayCodeFormat?: string;
 }) {
   const { data } = await api.patch('/tenants/me', payload);
   return data;

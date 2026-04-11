@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import {
   ReactFlow,
   Background,
@@ -8,13 +8,15 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
-  addEdge,
+  applyNodeChanges,
+  applyEdgeChanges,
   type Connection,
   type Node,
   type Edge,
   type OnConnect,
   type NodeTypes,
   type EdgeTypes,
+  ConnectionLineType,
   BackgroundVariant,
   type OnNodesChange,
   type OnEdgesChange,
@@ -47,9 +49,10 @@ interface BuilderCanvasProps {
   onNodeSelect: (nodeId: string | null) => void;
   onEdgeSelect: (edgeId: string | null) => void;
   onNewConnection: (connection: Connection) => void;
-  onNodesChangeExternal?: (nodes: Node[]) => void;
-  nodesRef: React.MutableRefObject<Node[]>;
-  edgesRef: React.MutableRefObject<Edge[]>;
+  onNodesChangeExternal?: (nodes: Node<StageNodeData>[]) => void;
+  onEdgesChangeExternal?: (edges: Edge<TransitionEdgeData>[]) => void;
+  nodesRef: React.MutableRefObject<Node<StageNodeData>[]>;
+  edgesRef: React.MutableRefObject<Edge<TransitionEdgeData>[]>;
 }
 
 export function BuilderCanvas({
@@ -59,37 +62,45 @@ export function BuilderCanvas({
   onEdgeSelect,
   onNewConnection,
   onNodesChangeExternal,
+  onEdgesChangeExternal,
   nodesRef,
   edgesRef,
 }: BuilderCanvasProps) {
   const { isReadOnly, markDirty } = useBuilderStore();
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes] = useNodesState(initialNodes);
+  const [edges, setEdges] = useEdgesState(initialEdges);
 
   // Keep refs in sync
   nodesRef.current = nodes;
   edgesRef.current = edges;
 
-  const handleNodesChange: OnNodesChange = useCallback(
+  const handleNodesChange: OnNodesChange<Node<StageNodeData>> = useCallback(
     (changes) => {
-      onNodesChange(changes);
+      const nextNodes = applyNodeChanges(changes, nodesRef.current);
+      setNodes(nextNodes);
+      nodesRef.current = nextNodes;
       // Mark dirty on position changes
       const hasDrag = changes.some((c) => c.type === 'position' && c.dragging === false);
       if (hasDrag) {
         markDirty();
-        onNodesChangeExternal?.(nodesRef.current);
+        onNodesChangeExternal?.(nextNodes);
       }
     },
-    [onNodesChange, markDirty, onNodesChangeExternal, nodesRef],
+    [markDirty, onNodesChangeExternal, nodesRef, setNodes],
   );
 
-  const handleEdgesChange: OnEdgesChange = useCallback(
+  const handleEdgesChange: OnEdgesChange<Edge<TransitionEdgeData>> = useCallback(
     (changes) => {
-      onEdgesChange(changes);
-      const hasRemove = changes.some((c) => c.type === 'remove');
-      if (hasRemove) markDirty();
+      const nextEdges = applyEdgeChanges(changes, edgesRef.current);
+      setEdges(nextEdges);
+      edgesRef.current = nextEdges;
+      const hasStructuralChange = changes.some((c) => c.type === 'remove' || c.type === 'replace');
+      if (hasStructuralChange) {
+        markDirty();
+        onEdgesChangeExternal?.(nextEdges);
+      }
     },
-    [onEdgesChange, markDirty],
+    [edgesRef, markDirty, onEdgesChangeExternal, setEdges],
   );
 
   const handleConnect: OnConnect = useCallback(
@@ -109,14 +120,14 @@ export function BuilderCanvas({
   );
 
   const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+    (_: React.MouseEvent, node: Node<StageNodeData>) => {
       onNodeSelect(node.id);
     },
     [onNodeSelect],
   );
 
   const handleEdgeClick = useCallback(
-    (_: React.MouseEvent, edge: Edge) => {
+    (_: React.MouseEvent, edge: Edge<TransitionEdgeData>) => {
       onEdgeSelect(edge.id);
     },
     [onEdgeSelect],
@@ -171,7 +182,7 @@ export function BuilderCanvas({
         defaultViewport={CANVAS_CONFIG.defaultViewport}
         fitView
         fitViewOptions={{ padding: 0.2 }}
-        connectionLineType="smoothstep"
+        connectionLineType={ConnectionLineType.SmoothStep}
         nodesDraggable={!isReadOnly}
         nodesConnectable={!isReadOnly}
         elementsSelectable

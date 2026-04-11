@@ -13,10 +13,21 @@ export class TenantsService {
   }
 
   async update(tenantId: string, dto: UpdateTenantDto) {
-    await this.findOne(tenantId);
+    const tenant = await this.findOne(tenantId);
+    const { pathwayCodeFormat, ...tenantData } = dto;
+    const currentFlags = (tenant.featureFlags ?? {}) as Record<string, unknown>;
+
     return this.prisma.tenant.update({
       where: { id: tenantId },
-      data: dto,
+      data: {
+        ...tenantData,
+        featureFlags: pathwayCodeFormat !== undefined
+          ? {
+              ...currentFlags,
+              pathwayCodeFormat: pathwayCodeFormat.trim() || 'PW-{YYYY}-{SEQ4}',
+            }
+          : undefined,
+      },
     });
   }
 

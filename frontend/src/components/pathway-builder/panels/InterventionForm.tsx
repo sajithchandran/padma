@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
-import type { ApiIntervention } from '@/types/pathway-builder.types';
+import { useEffect, useState } from 'react';
+import { BookCopy, Loader2, Search, X } from 'lucide-react';
+import type { ApiCareTaskTemplate, ApiIntervention } from '@/types/pathway-builder.types';
 import {
   INTERVENTION_TYPES,
   DELIVERY_MODES,
@@ -10,6 +10,7 @@ import {
   CARE_SETTINGS,
   OWNER_ROLES,
 } from '../utils/constants';
+import { fetchCareTaskTemplates } from '@/services/pathway.service';
 
 interface InterventionFormProps {
   intervention?: ApiIntervention;
@@ -24,6 +25,13 @@ export function InterventionForm({
 }: InterventionFormProps) {
   const isEdit = !!intervention;
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<'new' | 'library'>('new');
+  const [saveToLibrary, setSaveToLibrary] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<ApiCareTaskTemplate | null>(null);
+  const [libraryTemplates, setLibraryTemplates] = useState<ApiCareTaskTemplate[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [libraryQuery, setLibraryQuery] = useState('');
   const [form, setForm] = useState({
     name: intervention?.name ?? '',
     interventionType: intervention?.interventionType ?? 'consultation',
@@ -40,15 +48,61 @@ export function InterventionForm({
     sortOrder: intervention?.sortOrder ?? 0,
   });
 
+  useEffect(() => {
+    if (isEdit || mode !== 'library') return;
+
+    const timeout = window.setTimeout(async () => {
+      setLibraryLoading(true);
+      setLibraryError(null);
+      try {
+        const data = await fetchCareTaskTemplates({
+          q: libraryQuery.trim() || undefined,
+          activeOnly: true,
+        });
+        setLibraryTemplates(data);
+      } catch (error: any) {
+        const message = error?.response?.data?.message;
+        setLibraryError(Array.isArray(message) ? message.join(', ') : message ?? 'Failed to load task template library.');
+      } finally {
+        setLibraryLoading(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
+  }, [isEdit, libraryQuery, mode]);
+
+  const applyTemplate = (template: ApiCareTaskTemplate) => {
+    setForm({
+      name: template.name,
+      interventionType: template.interventionType,
+      description: template.description ?? '',
+      careSetting: template.careSetting ?? 'outpatient',
+      deliveryMode: template.deliveryMode ?? 'in_person',
+      frequencyType: template.frequencyType ?? 'once',
+      frequencyValue: template.frequencyValue ?? '',
+      startDayOffset: template.startDayOffset ?? 0,
+      endDayOffset: template.endDayOffset ?? '',
+      defaultOwnerRole: template.defaultOwnerRole ?? '',
+      priority: template.priority ?? 3,
+      isCritical: template.isCritical ?? false,
+      sortOrder: 0,
+    });
+    setSelectedTemplate(template);
+    setMode('new');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       await onSave({
         ...form,
-        frequencyValue: form.frequencyValue === '' ? null : Number(form.frequencyValue),
-        endDayOffset: form.endDayOffset === '' ? null : Number(form.endDayOffset),
-        defaultOwnerRole: form.defaultOwnerRole || null,
+        frequencyValue: form.frequencyValue === '' ? undefined : Number(form.frequencyValue),
+        endDayOffset: form.endDayOffset === '' ? undefined : Number(form.endDayOffset),
+        defaultOwnerRole: form.defaultOwnerRole || undefined,
+        saveToLibrary: !isEdit && saveToLibrary,
+        sourceTemplateId: selectedTemplate?.id ?? null,
+        sourceTemplateName: selectedTemplate?.name ?? null,
       });
       onClose();
     } finally {
@@ -73,6 +127,118 @@ export function InterventionForm({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {!isEdit && (
+            <div className="flex gap-2 rounded-lg bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setMode('new')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === 'new' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Create New
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('library')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  mode === 'library' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Select From Library
+              </button>
+            </div>
+          )}
+
+          {!isEdit && mode === 'library' ? (
+            <div className="space-y-4">
+              <div>
+                <label className={labelCls}>Search Library</label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className={`${inputCls} pl-9`}
+                    value={libraryQuery}
+                    onChange={(e) => setLibraryQuery(e.target.value)}
+                    placeholder="Search by name, description, or owner role"
+                  />
+                </div>
+              </div>
+
+              {libraryError && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {libraryError}
+                </div>
+              )}
+
+              <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                {libraryLoading ? (
+                  <div className="flex items-center justify-center py-8 text-slate-400">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </div>
+                ) : libraryTemplates.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-slate-400">
+                    No reusable task templates found
+                  </div>
+                ) : (
+                  libraryTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => applyTemplate(template)}
+                      className="w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium text-slate-800">
+                              {template.name}
+                            </span>
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                              {template.interventionType}
+                            </span>
+                          </div>
+                          {template.description && (
+                            <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                              {template.description}
+                            </p>
+                          )}
+                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                            <span>{template.frequencyType}</span>
+                            <span>Day {template.startDayOffset}{template.endDayOffset != null ? `-${template.endDayOffset}` : '+'}</span>
+                            {template.defaultOwnerRole && <span>{template.defaultOwnerRole}</span>}
+                          </div>
+                        </div>
+                        <span className="shrink-0 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white">
+                          Use
+                        </span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {!isEdit && selectedTemplate && (
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-blue-900">
+                      <BookCopy className="h-3.5 w-3.5" />
+                      Prefilled from library
+                    </p>
+                    <p className="mt-1 text-sm text-blue-800">{selectedTemplate.name}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMode('library')}
+                    className="shrink-0 text-xs font-medium text-blue-700 hover:text-blue-800"
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
+
           {/* Basic */}
           <div>
             <label className={labelCls}>Name</label>
@@ -210,6 +376,20 @@ export function InterventionForm({
             </div>
           </div>
 
+          {!isEdit && (
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={saveToLibrary}
+                onChange={(e) => setSaveToLibrary(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Save as reusable task template in library
+            </label>
+          )}
+            </>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
             <button
@@ -221,7 +401,7 @@ export function InterventionForm({
             </button>
             <button
               type="submit"
-              disabled={saving || !form.name}
+              disabled={saving || mode === 'library' || !form.name}
               className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md shadow-sm transition-colors disabled:opacity-50"
             >
               {saving ? (

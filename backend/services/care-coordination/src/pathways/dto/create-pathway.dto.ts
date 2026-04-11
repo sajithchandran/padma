@@ -7,6 +7,7 @@ import {
   Min,
   ValidateNested,
   IsIn,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -14,9 +15,10 @@ import { CreateStageDto } from './create-stage.dto';
 
 export class CreatePathwayDto {
   @ApiProperty({ maxLength: 100 })
+  @IsOptional()
   @IsString()
   @MaxLength(100)
-  code: string;
+  code?: string;
 
   @ApiProperty({ maxLength: 255 })
   @IsString()
@@ -58,6 +60,11 @@ export class CreatePathwayDto {
   @IsString()
   @MaxLength(255)
   externalSourceId?: string;
+
+  @ApiPropertyOptional({ description: 'Optional default care team mapped to this pathway' })
+  @IsOptional()
+  @IsUUID()
+  careTeamId?: string;
 
   @ApiPropertyOptional({ type: [CreateStageDto] })
   @IsOptional()
