@@ -1,13 +1,17 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ArrowRight, CheckCircle2, ChevronDown, ChevronUp, Loader2, PlayCircle, Search, X } from 'lucide-react';
+import { 
+  AlertCircle, ArrowRight, CheckCircle2, ChevronDown, ChevronUp, 
+  Loader2, PlayCircle, Search, X, Users, Activity,
+  Clock, Calendar, FileText, MoreHorizontal, UserPlus
+} from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
-import { RiskBadge, StatusBadge } from '@/components/ui/Badge';
+import { RiskBadge, StatusBadge, Badge } from '@/components/ui/Badge';
 import { fetchPatients, type ApiPatientListItem } from '@/services/patients.service';
 import {
   fetchStageHistory,
@@ -22,6 +26,8 @@ import {
   type ApiTask,
 } from '@/services/tasks.service';
 import { fetchUsers } from '@/services/users.service';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type SortKey = 'name' | 'riskLevel' | 'openTasks' | 'lastActivityAt';
 type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -31,26 +37,9 @@ const STATUS_FILTERS = ['ALL', 'PENDING', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANC
 
 function formatDateLabel(value?: string | null) {
   if (!value) return '—';
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-
-  return new Intl.DateTimeFormat('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
-}
-
-function pathwaySummary(patient: ApiPatientListItem) {
-  if (patient.currentPathways.length === 0) return '—';
-  if (patient.currentPathways.length <= 2) return patient.currentPathways.join(', ');
-  return `${patient.currentPathways.slice(0, 2).join(', ')} +${patient.currentPathways.length - 2} more`;
-}
-
-function enrollmentStatusLabel(status: string) {
-  if (status === 'pending') return 'Not started';
-  if (status === 'active') return 'In progress';
-  return status.replace('_', ' ');
+  return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 
 function ProgressDrawer({
@@ -67,10 +56,7 @@ function ProgressDrawer({
 
   const tasksQuery = useQuery({
     queryKey: ['enrollment-tasks', enrollment.enrollmentId, enrollment.currentStage.id],
-    queryFn: () => fetchEnrollmentTasks(enrollment.enrollmentId, {
-      stageId: enrollment.currentStage.id,
-      limit: 100,
-    }),
+    queryFn: () => fetchEnrollmentTasks(enrollment.enrollmentId, { stageId: enrollment.currentStage.id, limit: 100 }),
     enabled: enrollment.status === 'active',
   });
 
@@ -85,16 +71,10 @@ function ProgressDrawer({
     queryFn: () => fetchStageHistory(enrollment.enrollmentId),
   });
 
-  const usersQuery = useQuery({
-    queryKey: ['users'],
-    queryFn: fetchUsers,
-  });
+  const usersQuery = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
 
   const completeMutation = useMutation({
-    mutationFn: (taskId: string) => completeTask(taskId, {
-      completionMethod: 'manual',
-      completionNotes: 'Completed from Patient Pathway progress',
-    }),
+    mutationFn: (taskId: string) => completeTask(taskId, { completionMethod: 'manual', completionNotes: 'Completed from Patient Pathway progress' }),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['enrollment-tasks', enrollment.enrollmentId] }),
@@ -115,10 +95,7 @@ function ProgressDrawer({
   });
 
   const transitionMutation = useMutation({
-    mutationFn: (toStageId: string) => transitionEnrollment(enrollment.enrollmentId, {
-      toStageId,
-      reason: 'Moved from Patient Pathway progress after completing current-stage tasks',
-    }),
+    mutationFn: (toStageId: string) => transitionEnrollment(enrollment.enrollmentId, { toStageId, reason: 'Manual transition' }),
     onSuccess: async () => {
       setTransitionError(null);
       await Promise.all([
@@ -129,10 +106,7 @@ function ProgressDrawer({
       ]);
       onClose();
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message;
-      setTransitionError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Unable to move to the next stage.'));
-    },
+    onError: (err: any) => setTransitionError(err?.response?.data?.message ?? 'Movement failed.'),
   });
 
   const tasks = tasksQuery.data?.data ?? [];
@@ -142,69 +116,78 @@ function ProgressDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="relative flex h-full w-full max-w-2xl flex-col overflow-hidden bg-card shadow-2xl border-l border-border">
+        <div className="flex items-start justify-between border-b border-border bg-muted/20 px-6 py-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Patient Pathway</p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">{enrollment.pathwayName}</h2>
-            <p className="mt-1 text-sm text-slate-500">{patient.name} · {patient.mrn || patient.id}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-1">Patient Pathway Case</p>
+            <h2 className="text-xl font-bold text-foreground font-display leading-tight">{enrollment.pathwayName}</h2>
+            <p className="mt-1.5 text-xs text-muted-foreground font-medium flex items-center gap-2">
+              <span className="font-bold text-foreground/80">{patient.name}</span>
+              <span className="h-1 w-1 rounded-full bg-border" />
+              <span>{patient.mrn || patient.id}</span>
+            </p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <X className="h-4 w-4" />
+          <button onClick={onClose} className="h-9 w-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted transition-all">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <Card>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 custom-scrollbar">
+          <Card padding="sm" className="bg-primary/5 border-primary/20">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs text-slate-500">Current stage</p>
-                <p className="text-base font-semibold text-slate-900">{enrollment.currentStage.name}</p>
-                <p className="text-xs text-slate-400">{enrollment.currentStage.code} · {enrollment.currentStage.stageType}</p>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">Current Milestones</p>
+                <p className="text-lg font-bold text-foreground font-display">{enrollment.currentStage.name}</p>
+                <div className="flex items-center gap-2 mt-1">
+                   <Badge variant="neutral" size="xs">{enrollment.currentStage.code}</Badge>
+                   <span className="h-1 w-1 rounded-full bg-border" />
+                   <span className="text-[10px] font-bold text-muted-foreground uppercase">{enrollment.currentStage.stageType}</span>
+                </div>
               </div>
               <StatusBadge status={enrollment.status.toUpperCase()} />
             </div>
           </Card>
 
-          <Card>
-            <div className="mb-3 flex items-center justify-between">
+          <Card padding="none" className="overflow-hidden border-border/60">
+            <div className="px-5 py-4 border-b border-border/60 bg-muted/20 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">Current Stage Tasks</h3>
-                <p className="text-xs text-slate-500">Generated from interventions associated with this stage</p>
+                <h3 className="text-sm font-bold text-foreground font-display">Active Interventions</h3>
+                <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Clinical tasks for the current stage</p>
               </div>
-              {tasksQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+              {tasksQuery.isLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
             </div>
 
-            {tasks.length === 0 && !tasksQuery.isLoading ? (
-              <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No tasks are available for this stage.</p>
-            ) : (
-              <div className="space-y-3">
-                {tasks.map((task) => (
-                  <div key={task.id} className="rounded-xl border border-slate-200 p-3">
-                    <div className="flex items-start justify-between gap-3">
+            <div className="divide-y divide-border/40">
+              {tasks.length === 0 && !tasksQuery.isLoading ? (
+                <div className="p-10 text-center">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2 opacity-40" />
+                  <p className="text-xs text-muted-foreground font-medium">All stage objectives completed.</p>
+                </div>
+              ) : (
+                tasks.map((task) => (
+                  <div key={task.id} className="p-4 hover:bg-muted/10 transition-colors">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="font-medium text-slate-900">{task.title}</p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          Due {formatDateLabel(task.dueDate)} · {task.assignedToRole || 'No role'}
-                        </p>
+                        <p className="text-sm font-bold text-foreground leading-snug">{task.title}</p>
+                        <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+                           <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Due {formatDateLabel(task.dueDate)}</span>
+                           <span className="h-1 w-1 rounded-full bg-border" />
+                           <span>{task.assignedToRole || 'Unassigned Role'}</span>
+                        </div>
                       </div>
                       <StatusBadge status={task.status.toUpperCase()} />
                     </div>
 
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-border/20">
                       <select
                         value={task.assignedToUserId ?? ''}
-                        onChange={(event) => reassignMutation.mutate({ task, userId: event.target.value })}
+                        onChange={(ev) => reassignMutation.mutate({ task, userId: ev.target.value })}
                         disabled={reassignMutation.isPending || task.status === 'completed'}
-                        className="h-9 rounded-lg border border-slate-300 px-2 text-xs"
+                        className="h-8 rounded-lg border border-border bg-muted/30 px-2 text-[11px] font-bold focus:ring-2 focus:ring-primary/20 transition max-w-[180px]"
                       >
-                        <option value="">Assign to user...</option>
-                        {users.map((user) => (
-                          <option key={`${user.userId}-${user.roleId}`} value={user.userId}>
-                            {user.displayName || user.email} ({user.roleName})
-                          </option>
-                        ))}
+                        <option value="">Assign clinician...</option>
+                        {users.map((u) => <option key={u.userId} value={u.userId}>{u.displayName || u.email}</option>)}
                       </select>
                       <Button
                         size="xs"
@@ -213,62 +196,69 @@ function ProgressDrawer({
                         onClick={() => completeMutation.mutate(task.id)}
                         icon={<CheckCircle2 className="h-3.5 w-3.5" />}
                       >
-                        {task.status === 'completed' ? 'Completed' : 'Complete'}
+                        {task.status === 'completed' ? 'Verified' : 'Complete Task'}
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                )
+              ))}
+            </div>
           </Card>
 
-          <Card>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Card padding="glass" className="border-border shadow-md">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">Stage Movement</h3>
-                <p className="text-xs text-slate-500">
-                  {readiness?.reason || 'Move after all current-stage tasks are completed.'}
-                </p>
-                {transitionError && <p className="mt-2 text-xs text-red-600">{transitionError}</p>}
+                <h3 className="text-sm font-bold text-foreground font-display">Path Progress</h3>
+                <p className="text-[10px] text-muted-foreground font-medium mt-0.5 max-w-xs">{readiness?.reason || 'Movement available after intervention completion.'}</p>
+                {transitionError && <p className="mt-2 text-xs text-red-500 bg-red-500/10 p-2 rounded-lg">{transitionError}</p>}
               </div>
               <Button
                 disabled={!readiness?.canTransition || !nextStage || transitionMutation.isPending}
                 loading={transitionMutation.isPending}
                 onClick={() => nextStage && transitionMutation.mutate(nextStage.id)}
-                icon={<ArrowRight className="h-4 w-4" />}
+                iconRight={<ArrowRight className="h-4 w-4" />}
+                size="sm"
               >
-                {nextStage ? `Move to ${nextStage.name}` : 'No next stage'}
+                {nextStage ? `Next: ${nextStage.name}` : 'Stay in Stage'}
               </Button>
             </div>
             {readiness && readiness.blockingTaskCount > 0 && (
-              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                {readiness.blockingTaskCount} task{readiness.blockingTaskCount === 1 ? '' : 's'} must be completed before movement.
-              </p>
+              <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                 <AlertCircle className="h-4 w-4 text-amber-500" />
+                 <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight">
+                  {readiness.blockingTaskCount} mandatory intervention{readiness.blockingTaskCount === 1 ? '' : 's'} remaining.
+                 </p>
+              </div>
             )}
           </Card>
 
-          <Card>
-            <h3 className="text-sm font-semibold text-slate-900">History / Audit</h3>
-            <div className="mt-3 space-y-3">
-              {(historyQuery.data ?? []).map((item) => (
-                <div key={item.id} className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-sm font-medium text-slate-900">
-                    {item.fromStageName ? `${item.fromStageName} -> ${item.toStageName}` : `Started at ${item.toStageName}`}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {item.transitionType} · {formatDateLabel(item.transitionedAt)}
-                    {item.performedBy ? ` · by ${item.performedBy}` : ''}
-                  </p>
-                  {item.reason && <p className="mt-1 text-xs text-slate-500">{item.reason}</p>}
-                </div>
-              ))}
-              {!historyQuery.isLoading && (historyQuery.data ?? []).length === 0 && (
-                <p className="text-sm text-slate-500">No stage history recorded yet.</p>
-              )}
-            </div>
-          </Card>
+          <div className="space-y-4">
+             <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Stage Lifecycle History</h3>
+             <div className="relative space-y-4">
+                <div className="absolute left-[13px] top-6 bottom-6 w-0.5 bg-border/40" />
+                {(historyQuery.data ?? []).map((item, i) => (
+                  <div key={item.id} className="relative pl-8">
+                     <div className="absolute left-0 h-[28px] w-[28px] rounded-lg bg-muted border border-border flex items-center justify-center z-10">
+                        <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+                     </div>
+                     <div className="bg-muted/10 border border-border/50 rounded-2xl p-4">
+                        <p className="text-sm font-bold text-foreground">
+                          {item.fromStageName ? `${item.fromStageName} → ${item.toStageName}` : `Enrolled: ${item.toStageName}`}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter opacity-70">
+                           <span>{item.transitionType}</span>
+                           <span className="h-0.5 w-0.5 rounded-full bg-border" />
+                           <span>{formatDateLabel(item.transitionedAt)}</span>
+                           {item.performedBy && <><span className="h-0.5 w-0.5 rounded-full bg-border" /><span>{item.performedBy}</span></>}
+                        </div>
+                        {item.reason && <p className="mt-2 text-xs text-muted-foreground border-l-2 border-border pl-2 italic">{item.reason}</p>}
+                     </div>
+                  </div>
+                ))}
+             </div>
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -284,264 +274,180 @@ export default function PatientsPage() {
   } | null>(null);
   const queryClient = useQueryClient();
 
-  const {
-    data: patients = [],
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
+  const { data: patients = [], isLoading, isError, error } = useQuery({
     queryKey: ['patients', search, statusFilter],
-    queryFn: () => fetchPatients({
-      q: search.trim() || undefined,
-      status: statusFilter === 'ALL' ? undefined : statusFilter,
-    }),
+    queryFn: () => fetchPatients({ q: search.trim() || undefined, status: statusFilter === 'ALL' ? undefined : statusFilter }),
   });
 
   const startMutation = useMutation({
-    mutationFn: (enrollmentId: string) => startEnrollment(enrollmentId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['patients'] });
-    },
+    mutationFn: (id: string) => startEnrollment(id),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['patients'] }); },
   });
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((current) => (current === 'asc' ? 'desc' : 'asc'));
-      return;
-    }
-
-    setSortKey(key);
-    setSortDir(key === 'name' ? 'asc' : 'desc');
-  }
 
   const filtered = useMemo(() => {
     const list = [...patients];
     list.sort((a, b) => {
-      let comparison = 0;
-
-      if (sortKey === 'name') comparison = a.name.localeCompare(b.name);
-      else if (sortKey === 'riskLevel') {
-        comparison = RISK_ORDER[a.riskLevel as RiskLevel] - RISK_ORDER[b.riskLevel as RiskLevel];
-      } else if (sortKey === 'openTasks') comparison = a.openTasks - b.openTasks;
-      else if (sortKey === 'lastActivityAt') {
-        const aTime = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
-        const bTime = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
-        comparison = aTime - bTime;
-      }
-
-      return sortDir === 'asc' ? comparison : -comparison;
+      let c = 0;
+      if (sortKey === 'name') c = a.name.localeCompare(b.name);
+      else if (sortKey === 'riskLevel') c = RISK_ORDER[a.riskLevel as RiskLevel] - RISK_ORDER[b.riskLevel as RiskLevel];
+      else if (sortKey === 'openTasks') c = a.openTasks - b.openTasks;
+      else if (sortKey === 'lastActivityAt') c = (new Date(a.lastActivityAt || 0).getTime()) - (new Date(b.lastActivityAt || 0).getTime());
+      return sortDir === 'asc' ? c : -c;
     });
     return list;
   }, [patients, sortDir, sortKey]);
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: patients.length };
-    patients.forEach((patient) => {
-      counts[patient.status] = (counts[patient.status] ?? 0) + 1;
-    });
-    return counts;
-  }, [patients]);
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronUp className="h-3 w-3 text-slate-300" />;
-    return sortDir === 'asc'
-      ? <ChevronUp className="h-3 w-3 text-blue-500" />
-      : <ChevronDown className="h-3 w-3 text-blue-500" />;
-  }
-
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <Input
-            placeholder="Search enrolled patients by name, MRN, or pathway…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            icon={<Search className="h-4 w-4" />}
-          />
+    <div className="space-y-6 pb-10">
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="w-full sm:flex-1">
+          <Input placeholder="Search clinicians, roles, or email…" value={search} onChange={(e) => setSearch(e.target.value)} icon={<Search className="h-4 w-4" />} />
+        </div>
+        <div className="flex w-full sm:w-auto gap-2">
+           <Button icon={<UserPlus className="h-4 w-4" />} block className="sm:w-auto">Register Patient</Button>
         </div>
       </div>
 
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit flex-wrap">
-        {STATUS_FILTERS.map((status) => (
+      <div className="flex gap-1.5 bg-muted/40 p-1 rounded-2xl w-fit flex-wrap border border-border/50">
+        {STATUS_FILTERS.map((s) => (
           <button
-            key={status}
-            onClick={() => setStatusFilter(status)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              statusFilter === status ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={cn(
+              "px-4 py-1.5 rounded-xl text-xs font-bold transition-all uppercase tracking-widest",
+              statusFilter === s ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground"
+            )}
           >
-            {status} <span className="text-slate-400">({statusCounts[status] ?? 0})</span>
+            {s}
           </button>
         ))}
       </div>
 
       {isError && (
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200">
-          <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">
-            {(error as any)?.response?.data?.message ?? 'Unable to load enrolled patients.'}
-          </p>
+        <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-sm text-red-500 font-bold">
+          <AlertCircle className="h-5 w-5" />
+          {(error as any)?.response?.data?.message ?? 'Network error accessing patient data.'}
         </div>
       )}
 
-      <Card padding="none" className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      <Card padding="none" className="overflow-hidden border-border/60">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
+              <tr className="border-b border-border bg-muted/20">
                 {[
-                  { label: 'Patient', key: 'name' },
-                  { label: 'Status', key: null },
-                  { label: 'Risk', key: 'riskLevel' },
-                  { label: 'Patient Pathways', key: null },
+                  { label: 'Patient Name', key: 'name' },
+                  { label: 'Clinical Status', key: null },
+                  { label: 'Risk Intensity', key: 'riskLevel' },
+                  { label: 'Active Pathways', key: null },
                   { label: 'Coordinator', key: null },
-                  { label: 'Open Tasks', key: 'openTasks' },
-                  { label: 'Last Activity', key: 'lastActivityAt' },
-                  { label: '', key: null },
+                  { label: 'Due Actions', key: 'openTasks' },
+                  { label: 'Activity', key: 'lastActivityAt' },
+                  { label: 'Controls', key: null },
                 ].map(({ label, key }) => (
                   <th
                     key={label}
-                    className={`text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${key ? 'cursor-pointer hover:text-slate-700 select-none' : ''}`}
-                    onClick={() => key && toggleSort(key as SortKey)}
+                    className={cn(
+                      "px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-widest whitespace-nowrap",
+                      key && "cursor-pointer hover:text-foreground transition-colors"
+                    )}
+                    onClick={() => key && setSortDir(sortKey === key && sortDir === 'desc' ? 'asc' : 'desc')}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {label}
-                      {key && <SortIcon col={key as SortKey} />}
+                      {key === sortKey && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                     </div>
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-border/40">
               {isLoading ? (
-                Array.from({ length: 6 }).map((_, index) => (
-                  <tr key={index} className="animate-pulse">
-                    {Array.from({ length: 8 }).map((__, cellIndex) => (
-                      <td key={cellIndex} className="px-4 py-4">
-                        <div className="h-4 bg-slate-100 rounded w-full max-w-[180px]" />
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    {Array.from({ length: 8 }).map((__, c) => (
+                      <td key={c} className="px-5 py-6">
+                        <div className="h-4 bg-muted rounded w-full max-w-[120px]" />
                       </td>
                     ))}
                   </tr>
                 ))
-              ) : (
-                filtered.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <Avatar name={patient.name} size="sm" />
-                        <div>
-                          <p className="font-medium text-slate-900">{patient.name}</p>
-                          <p className="text-xs text-slate-400">{patient.mrn || patient.id}</p>
-                        </div>
+              ) : filtered.map((p) => (
+                <tr key={p.id} className="hover:bg-muted/10 transition-colors group">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={p.name} size="sm" />
+                      <div className="min-w-0">
+                        <p className="font-bold text-foreground font-display truncate">{p.name}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-tighter">{p.mrn || p.id}</p>
                       </div>
-                    </td>
-                    <td className="px-4 py-3.5"><StatusBadge status={patient.status} /></td>
-                    <td className="px-4 py-3.5"><RiskBadge level={patient.riskLevel} /></td>
-                    <td className="px-4 py-3.5 max-w-[260px]">
-                      <div className="space-y-2">
-                        {patient.enrollments?.length ? patient.enrollments.map((enrollment) => (
-                          <div key={enrollment.enrollmentId} className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-semibold text-slate-800">{enrollment.pathwayName}</p>
-                                <p className="mt-0.5 text-[11px] text-slate-500">
-                                  {enrollmentStatusLabel(enrollment.status)}
-                                  {enrollment.status === 'active' ? ` · ${enrollment.currentStage.name}` : ''}
-                                </p>
-                              </div>
-                              <StatusBadge status={enrollment.status.toUpperCase()} />
-                            </div>
-                          </div>
-                        )) : (
-                          <>
-                            <p className="text-slate-700 truncate">{pathwaySummary(patient)}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {patient.enrolledPathways} enrollment{patient.enrolledPathways === 1 ? '' : 's'}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {patient.assignedCareCoordinator ? (
-                        <div className="flex items-center gap-2">
-                          <Avatar name={patient.assignedCareCoordinator} size="xs" />
-                          <span className="text-slate-600 text-xs whitespace-nowrap">
-                            {patient.assignedCareCoordinator}
-                          </span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4"><StatusBadge status={p.status} /></td>
+                  <td className="px-5 py-4"><RiskBadge level={p.riskLevel} /></td>
+                  <td className="px-5 py-4 min-w-[200px]">
+                    <div className="flex flex-wrap gap-1.5">
+                      {p.enrollments?.map((e) => (
+                        <div key={e.enrollmentId} className="px-2 py-1 rounded-lg bg-primary/5 border border-primary/20 flex flex-col max-w-[180px]">
+                            <span className="text-[10px] font-bold text-foreground truncate">{e.pathwayName}</span>
+                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-tight opacity-70">
+                              {e.status === 'active' ? e.currentStage.name : e.status}
+                            </span>
                         </div>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3.5">
+                      ))}
+                      {!p.enrollments?.length && <span className="text-xs text-muted-foreground italic">No active enrollments</span>}
+                    </div>
+                  </td>
+                  <td className="px-5 py-4">
+                    {p.assignedCareCoordinator ? (
                       <div className="flex items-center gap-2">
-                        <span className={`font-semibold ${patient.overdueTasks > 0 ? 'text-red-600' : patient.openTasks > 1 ? 'text-amber-600' : 'text-slate-700'}`}>
-                          {patient.openTasks}
+                        <Avatar name={p.assignedCareCoordinator} size="xs" />
+                        <span className="text-foreground/80 text-[11px] font-bold truncate">
+                          {p.assignedCareCoordinator}
                         </span>
-                        {patient.overdueTasks > 0 && (
-                          <span className="text-xs text-red-500">
-                            {patient.overdueTasks} overdue
-                          </span>
-                        )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-slate-500 whitespace-nowrap">
-                      {formatDateLabel(patient.lastActivityAt)}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-col gap-2">
-                        {(patient.enrollments ?? []).map((enrollment) => (
-                          <div key={enrollment.enrollmentId} className="flex items-center gap-2">
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              onClick={() => setSelectedProgress({ patient, enrollment })}
-                            >
-                              View
-                            </Button>
-                            {enrollment.canStart && (
-                              <Button
-                                size="xs"
-                                onClick={() => startMutation.mutate(enrollment.enrollmentId)}
-                                loading={startMutation.isPending}
-                                icon={<PlayCircle className="h-3.5 w-3.5" />}
-                              >
-                                Start
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
+                    ) : <span className="text-muted-foreground/30">—</span>}
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      <p className={cn("text-xs font-bold", p.overdueTasks > 0 ? "text-red-500" : p.openTasks > 0 ? "text-amber-500" : "text-foreground/60")}>
+                        {p.openTasks}
+                      </p>
+                      {p.overdueTasks > 0 && <Badge variant="danger" size="xs">{p.overdueTasks}!</Badge>}
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-[10px] font-bold text-muted-foreground uppercase tracking-tight whitespace-nowrap">
+                    {formatDateLabel(p.lastActivityAt)}
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2">
+                       {p.enrollments?.[0] && (
+                        <Button size="xs" variant="outline" onClick={() => setSelectedProgress({ patient: p, enrollment: p.enrollments[0] })}>
+                          Monitor
+                        </Button>
+                       )}
+                       <Button size="xs" variant="ghost" icon={<MoreHorizontal className="h-4 w-4" />} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-
-          {!isLoading && filtered.length === 0 && (
-            <div className="py-16 text-center">
-              <p className="text-sm text-slate-500">No enrolled patients match your search.</p>
-            </div>
-          )}
         </div>
-
-        <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50">
-          <span>Showing {filtered.length} enrolled patients</span>
-          <Button variant="outline" size="xs" disabled>
-            Patient 360 wiring pending
-          </Button>
+        <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          <span>Active Registry: {filtered.length} Patients Enrolled</span>
         </div>
       </Card>
-      {selectedProgress && (
-        <ProgressDrawer
-          patient={selectedProgress.patient}
-          enrollment={selectedProgress.enrollment}
-          onClose={() => setSelectedProgress(null)}
-        />
-      )}
+
+      <AnimatePresence>
+        {selectedProgress && (
+          <ProgressDrawer
+            patient={selectedProgress.patient}
+            enrollment={selectedProgress.enrollment}
+            onClose={() => setSelectedProgress(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

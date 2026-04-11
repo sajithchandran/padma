@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Search, Bell, ChevronDown, Settings, LogOut, User, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
+import { ThemeToggle } from './ThemeToggle';
 import { useAuthStore } from '@/store/auth.store';
 import { authService } from '@/services/auth.service';
 
@@ -51,66 +52,71 @@ export function Header() {
   }
 
   return (
-    <header className="h-16 flex-shrink-0 bg-white border-b border-slate-200 flex items-center justify-between px-6 gap-4 relative z-30">
+    <header className="h-16 flex-shrink-0 bg-background/50 backdrop-blur-md border-b border-border flex items-center justify-between px-6 gap-4 relative z-30 transition-all duration-300">
       {/* Left — Page title */}
       <div className="min-w-0">
-        <h1 className="text-base font-semibold text-slate-900 truncate">{page.title}</h1>
+        <h1 className="text-lg font-bold text-foreground font-display tracking-tight truncate">{page.title}</h1>
         {page.subtitle && (
-          <p className="text-xs text-slate-500 truncate">{page.subtitle}</p>
+          <p className="text-xs text-muted-foreground truncate hidden sm:block">{page.subtitle}</p>
         )}
       </div>
 
-      {/* Right — Search + Notifications + Profile */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      {/* Right — Search + Theme + Notifications + Profile */}
+      <div className="flex items-center gap-3 flex-shrink-0">
         {/* Search */}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <div className="relative hidden md:block group">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <input
             type="text"
             placeholder="Search patients, tasks…"
-            className="h-9 w-64 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all duration-150"
+            className="h-9 w-64 pl-9 pr-3 rounded-xl border border-border bg-muted/50 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary focus:bg-background transition-all duration-200"
           />
         </div>
+
+        {/* Theme Toggle */}
+        <ThemeToggle />
 
         {/* Notifications */}
         <div className="relative">
           <button
             onClick={() => { setNotifOpen(!notifOpen); setProfileOpen(false); }}
-            className="relative h-9 w-9 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            className="relative h-9 w-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200 border border-transparent hover:border-border"
           >
             <Bell className="h-5 w-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background animate-pulse" />
             )}
           </button>
 
           {notifOpen && (
             <>
               <div className="fixed inset-0" onClick={() => setNotifOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
-                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-900">Notifications</span>
+              <div className="absolute right-0 top-full mt-2 w-80 bg-popover rounded-2xl shadow-premium border border-border overflow-hidden z-50 animate-in">
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                  <span className="text-sm font-semibold text-foreground font-display">Notifications</span>
                   {unreadCount > 0 && (
-                    <span className="text-xs text-blue-600 font-medium cursor-pointer hover:underline">Mark all read</span>
+                    <span className="text-xs text-primary font-medium cursor-pointer hover:underline">Mark all read</span>
                   )}
                 </div>
-                <div className="divide-y divide-slate-50">
+                <div className="divide-y divide-border">
                   {NOTIFICATIONS.map((n) => (
-                    <div key={n.id} className={cn('px-4 py-3 flex gap-3 hover:bg-slate-50 cursor-pointer', n.unread && 'bg-blue-50/40')}>
+                    <div key={n.id} className={cn('px-4 py-3 flex gap-3 hover:bg-muted cursor-pointer transition-colors', n.unread && 'bg-primary/5')}>
                       <div className={cn(
                         'h-2 w-2 rounded-full mt-1.5 flex-shrink-0',
-                        n.type === 'alert' ? 'bg-red-500' : n.type === 'overdue' ? 'bg-amber-500' : 'bg-blue-500',
+                        n.type === 'alert' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 
+                        n.type === 'overdue' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' : 
+                        'bg-primary shadow-[0_0_8px_rgba(59,130,246,0.4)]',
                       )} />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900">{n.title}</p>
-                        <p className="text-xs text-slate-500 truncate">{n.body}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{n.time}</p>
+                        <p className="text-sm font-semibold text-foreground leading-tight">{n.title}</p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">{n.body}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1 uppercase font-bold tracking-tighter">{n.time}</p>
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="px-4 py-2.5 border-t border-slate-100 text-center">
-                  <span className="text-xs text-blue-600 font-medium cursor-pointer hover:underline">View all notifications</span>
+                <div className="px-4 py-2.5 border-t border-border text-center hover:bg-muted transition-colors transition-colors">
+                  <span className="text-xs text-primary font-semibold cursor-pointer hover:underline">View all notifications</span>
                 </div>
               </div>
             </>
@@ -121,45 +127,45 @@ export function Header() {
         <div className="relative">
           <button
             onClick={() => { setProfileOpen(!profileOpen); setNotifOpen(false); }}
-            className="flex items-center gap-2 h-9 px-2 rounded-lg hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-3 h-10 pl-2 pr-4 rounded-xl hover:bg-muted transition-all duration-200 border border-transparent hover:border-border"
             disabled={signingOut}
           >
             <Avatar name={user?.name ?? 'User'} size="sm" />
-            <div className="hidden md:block text-left">
-              <p className="text-xs font-semibold text-slate-900 leading-none">{user?.name ?? 'Loading…'}</p>
-              <p className="text-[10px] text-slate-500 leading-tight mt-0.5 capitalize">{user?.roleCode?.replace('_', ' ') ?? ''}</p>
+            <div className="hidden lg:block text-left">
+              <p className="text-xs font-bold text-foreground leading-none font-display mb-1">{user?.name ?? 'User'}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight capitalize font-medium">{user?.roleCode?.replace('_', ' ') ?? ''}</p>
             </div>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden md:block" />
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 group-active:rotate-180 hidden md:block" />
           </button>
 
           {profileOpen && (
             <>
               <div className="fixed inset-0" onClick={() => setProfileOpen(false)} />
-              <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50">
-                <div className="px-4 py-3 border-b border-slate-100">
-                  <p className="text-sm font-semibold text-slate-900">{user?.name ?? '—'}</p>
-                  <p className="text-xs text-slate-500">{user?.email ?? '—'}</p>
-                  <span className="inline-block mt-1.5 text-[10px] font-medium px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full ring-1 ring-blue-200">
-                    {tenant?.name ?? 'Unknown tenant'}
+              <div className="absolute right-0 top-full mt-2 w-56 bg-popover rounded-2xl shadow-premium border border-border overflow-hidden z-50 animate-in">
+                <div className="px-5 py-4 border-b border-border bg-muted/30">
+                  <p className="text-sm font-bold text-foreground font-display">{user?.name ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground truncate mb-2">{user?.email ?? '—'}</p>
+                  <span className="inline-block text-[10px] font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-lg border border-primary/20 uppercase tracking-wider">
+                    {tenant?.name ?? 'Default'}
                   </span>
                 </div>
-                <div className="py-1">
+                <div className="py-2">
                   {[
                     { icon: <User className="h-4 w-4" />, label: 'My Profile' },
                     { icon: <Settings className="h-4 w-4" />, label: 'Preferences' },
                     { icon: <HelpCircle className="h-4 w-4" />, label: 'Help & Support' },
                   ].map((item) => (
-                    <button key={item.label} className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-                      <span className="text-slate-400">{item.icon}</span>
-                      {item.label}
+                    <button key={item.label} className="w-full flex items-center gap-3 px-5 py-2.5 text-sm text-foreground/80 hover:bg-muted transition-colors hover:text-foreground">
+                      <span className="text-muted-foreground">{item.icon}</span>
+                      <span className="font-medium">{item.label}</span>
                     </button>
                   ))}
                 </div>
-                <div className="py-1 border-t border-slate-100">
+                <div className="p-2 border-t border-border mt-1">
                   <button
                     onClick={handleLogout}
                     disabled={signingOut}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-50 font-semibold"
                   >
                     <LogOut className="h-4 w-4" />
                     Sign out

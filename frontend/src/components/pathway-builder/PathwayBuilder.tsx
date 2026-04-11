@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Connection, Edge, Node } from '@xyflow/react';
 import { AlertCircle, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import { BuilderCanvas } from './BuilderCanvas';
 import { BuilderHeader } from './BuilderHeader';
@@ -655,27 +656,27 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
   if (isCreateMode) {
     return (
-      <div className="flex h-full min-h-0 flex-col bg-slate-100">
-        <div className="h-14 border-b border-slate-200 bg-white px-4 flex items-center gap-4 shrink-0">
+      <div className="flex h-full min-h-0 flex-col bg-background">
+        <div className="h-14 border-b border-border bg-card px-4 flex items-center gap-4 shrink-0">
           <button
             onClick={() => router.push('/pathways')}
-            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
-          <div className="w-px h-6 bg-slate-200" />
-          <div className="flex items-center gap-2 text-slate-800">
-            <Sparkles className="w-4 h-4 text-blue-600" />
+          <div className="w-px h-6 bg-border" />
+          <div className="flex items-center gap-2 text-foreground">
+            <Sparkles className="w-4 h-4 text-primary" />
             <span className="font-semibold">New Pathway Builder</span>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-6 shadow-sm">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-slate-900">Create pathway in builder</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <h2 className="text-xl font-semibold text-foreground">Create pathway in builder</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Start by creating a draft pathway. Once saved, you will land directly in the visual builder to add stages, interventions, and transitions.
               </p>
             </div>
@@ -686,18 +687,18 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
               </div>
             )}
 
-            <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
               Pathway code will be generated automatically on first save using tenant format{' '}
               <span className="font-mono font-semibold">{pathwayCodeFormat}</span>.
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">Category</label>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Category</label>
                 <select
                   value={newPathwayForm.category}
                   onChange={(e) => setNewPathwayForm((prev) => ({ ...prev, category: e.target.value }))}
-                  className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
                   {PATHWAY_CATEGORIES.map((category) => (
                     <option key={category} value={category}>
@@ -709,41 +710,41 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
             </div>
 
             <div className="mt-4">
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">Pathway Name</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Pathway Name</label>
               <input
                 value={newPathwayForm.name}
                 onChange={(e) => setNewPathwayForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="e.g. Heart Failure Remote Monitoring"
-                className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
             <div className="mt-4">
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">Description</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Description</label>
               <textarea
                 value={newPathwayForm.description}
                 onChange={(e) => setNewPathwayForm((prev) => ({ ...prev, description: e.target.value }))}
                 rows={3}
                 placeholder="Optional summary of the pathway purpose and target cohort"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">Default Duration (days)</label>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Default Duration (days)</label>
                 <input
                   type="number"
                   min={1}
                   value={newPathwayForm.defaultDurationDays}
                   onChange={(e) => setNewPathwayForm((prev) => ({ ...prev, defaultDurationDays: e.target.value }))}
-                  className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">Applicable Settings</label>
-                <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 p-2">
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Applicable Settings</label>
+                <div className="flex flex-wrap gap-2 rounded-lg border border-border p-2">
                   {PATHWAY_SETTINGS.map((setting) => {
                     const selected = newPathwayForm.applicableSettings.includes(setting);
                     return (
@@ -758,11 +759,12 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
                               : [...prev.applicableSettings, setting],
                           }))
                         }
-                        className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                           selected
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        )}
                       >
                         {setting.replace('_', ' ')}
                       </button>
@@ -773,11 +775,11 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
             </div>
 
             <div className="mt-4">
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">Default Care Team</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Default Care Team</label>
               <select
                 value={newPathwayForm.careTeamId}
                 onChange={(e) => setNewPathwayForm((prev) => ({ ...prev, careTeamId: e.target.value }))}
-                className="h-10 w-full rounded-lg border border-slate-300 px-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
                 <option value="">No default care team</option>
                 {careTeams.map((team) => (
@@ -788,11 +790,11 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
               </select>
             </div>
 
-            <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5">
+            <div className="mt-6 flex justify-end gap-3 border-t border-border pt-5">
               <button
                 type="button"
                 onClick={() => router.push('/pathways')}
-                className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:bg-muted"
               >
                 Cancel
               </button>
@@ -800,7 +802,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
                 type="button"
                 onClick={handleCreatePathwayFromBuilder}
                 disabled={!createFormValid || creatingPathway}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {creatingPathway ? 'Creating...' : 'Create In Builder'}
               </button>
@@ -813,8 +815,8 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50">
-        <div className="flex items-center gap-3 text-slate-500">
+      <div className="h-full flex items-center justify-center bg-background">
+        <div className="flex items-center gap-3 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading pathway builder...
         </div>
@@ -824,12 +826,12 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
   if (error || !livePathway) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 p-6">
-        <div className="max-w-md rounded-xl border border-red-200 bg-white p-5 shadow-sm">
+      <div className="h-full flex items-center justify-center bg-background p-6">
+        <div className="max-w-md rounded-xl border border-red-200 bg-card p-5 shadow-sm">
           <div className="flex items-start gap-3 text-red-700">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
             <div>
-              <p className="font-semibold">Unable to load pathway builder</p>
+              <p className="font-semibold text-foreground">Unable to load pathway builder</p>
               <p className="mt-1 text-sm text-red-600">{error ?? 'Unknown error'}</p>
               <button
                 onClick={load}
@@ -845,7 +847,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-slate-100">
+    <div className="flex h-full min-h-0 flex-col bg-background">
       <BuilderHeader />
       <BuilderToolbar
         onAddStage={handleAddStage}

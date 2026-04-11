@@ -1,6 +1,6 @@
 {
-  "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
-  "/(dashboard)/enrollment/page": "app/(dashboard)/enrollment/page.js",
-  "/(dashboard)/communications/page": "app/(dashboard)/communications/page.js",
+  "/(dashboard)/pathways/page": "app/(dashboard)/pathways/page.js",
+  "/(dashboard)/analytics/page": "app/(dashboard)/analytics/page.js",
+  "/(dashboard)/patients/page": "app/(dashboard)/patients/page.js",
   "/(dashboard)/pathways/[id]/builder/page": "app/(dashboard)/pathways/[id]/builder/page.js"
 }

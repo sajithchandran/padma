@@ -21,10 +21,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/layout.js"
     ],
-    "/(dashboard)/settings/page": [
+    "/(dashboard)/pathways/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/settings/page.js"
+      "static/chunks/app/(dashboard)/pathways/page.js"
     ],
     "/(dashboard)/pathways/[id]/builder/page": [
       "static/chunks/webpack.js",
@@ -37,15 +37,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/pathways/[id]/builder/layout.js"
     ],
-    "/(dashboard)/enrollment/page": [
+    "/(dashboard)/patients/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/enrollment/page.js"
+      "static/chunks/app/(dashboard)/patients/page.js"
     ],
-    "/(dashboard)/communications/page": [
+    "/(dashboard)/analytics/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/communications/page.js"
+      "static/chunks/app/(dashboard)/analytics/page.js"
     ]
   }
 }

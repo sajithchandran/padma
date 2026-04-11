@@ -24,6 +24,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
+import { useTheme } from 'next-themes';
 import { StageNode } from './nodes/StageNode';
 import { TransitionEdge } from './edges/TransitionEdge';
 import { CANVAS_CONFIG, STAGE_TYPE_CONFIG } from './utils/constants';
@@ -66,6 +67,7 @@ export function BuilderCanvas({
   nodesRef,
   edgesRef,
 }: BuilderCanvasProps) {
+  const { theme } = useTheme();
   const { isReadOnly, markDirty } = useBuilderStore();
   const [nodes, setNodes] = useNodesState(initialNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
@@ -152,7 +154,7 @@ export function BuilderCanvas({
             markerHeight="16"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 16 8 L 0 16 z" fill="#94a3b8" />
+            <path d="M 0 0 L 16 8 L 0 16 z" fill="currentColor" className="text-muted-foreground/40" />
           </marker>
         </defs>
       </svg>
@@ -187,11 +189,18 @@ export function BuilderCanvas({
         nodesConnectable={!isReadOnly}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
+        colorMode={(theme as any) === 'dark' ? 'dark' : (theme as any) === 'light' ? 'light' : 'system'}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+        <Background 
+          variant={BackgroundVariant.Dots} 
+          gap={20} 
+          size={1} 
+          color={theme === 'dark' ? '#334155' : theme === 'light' ? '#e2e8f0' : 'currentColor'} 
+          className="text-muted-foreground/10"
+        />
         <Controls
           showInteractive={false}
-          className="!shadow-md !border-slate-200 !rounded-lg"
+          className="!shadow-md !border-border !bg-card !text-foreground !rounded-lg"
         />
         <MiniMap
           nodeStrokeWidth={3}
@@ -199,8 +208,8 @@ export function BuilderCanvas({
             const st = node.data?.stage?.stageType;
             return st ? STAGE_TYPE_CONFIG[st as keyof typeof STAGE_TYPE_CONFIG]?.dot ?? '#94a3b8' : '#94a3b8';
           }}
-          className="!shadow-md !border-slate-200 !rounded-lg"
-          maskColor="rgba(0,0,0,0.08)"
+          className="!shadow-md !border-border !bg-card !rounded-lg"
+          maskColor={theme === 'dark' ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.08)'}
         />
       </ReactFlow>
     </div>

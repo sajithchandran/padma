@@ -7,6 +7,7 @@ import {
   Upload,
   Loader2,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useBuilderStore } from '@/store/builder.store';
 
 interface BuilderToolbarProps {
@@ -25,25 +26,25 @@ export function BuilderToolbar({
   const { isReadOnly, isDirty, isSaving, isPublishing } = useBuilderStore();
 
   return (
-    <div className="h-11 border-b border-slate-200 bg-slate-50 px-4 flex items-center gap-2 shrink-0">
+    <div className="h-11 border-b border-border bg-card/80 backdrop-blur-md px-4 flex items-center gap-2 shrink-0">
       {/* Left actions */}
       {!isReadOnly && (
         <>
           <button
             onClick={onAddStage}
-            className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 px-2.5 py-1.5 rounded-md transition-colors"
+            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-primary hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Stage
           </button>
 
-          <div className="w-px h-5 bg-slate-200" />
+          <div className="w-px h-5 bg-border" />
         </>
       )}
 
       <button
         onClick={onAutoLayout}
-        className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 px-2.5 py-1.5 rounded-md transition-colors"
+        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted px-2.5 py-1.5 rounded-lg transition-all"
       >
         <LayoutGrid className="w-3.5 h-3.5" />
         Auto Layout
@@ -58,13 +59,12 @@ export function BuilderToolbar({
           <button
             onClick={onSave}
             disabled={isSaving || !isDirty}
-            className={`
-              flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-colors
-              ${isDirty
-                ? 'text-white bg-blue-600 hover:bg-blue-700 shadow-sm'
-                : 'text-slate-400 bg-slate-100 cursor-not-allowed'
-              }
-            `}
+            className={cn(
+              "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all shadow-sm",
+              isDirty
+                ? 'text-primary-foreground bg-primary hover:bg-primary/90'
+                : 'text-muted-foreground bg-muted cursor-not-allowed opacity-50 shadow-none'
+            )}
           >
             {isSaving ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -77,13 +77,12 @@ export function BuilderToolbar({
           <button
             onClick={onPublish}
             disabled={isPublishing || isDirty}
-            className={`
-              flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-colors
-              ${!isDirty && !isPublishing
-                ? 'text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm'
-                : 'text-slate-400 bg-slate-100 cursor-not-allowed'
-              }
-            `}
+            className={cn(
+              "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all shadow-sm",
+              !isDirty && !isPublishing
+                ? 'text-white bg-emerald-500 hover:bg-emerald-600'
+                : 'text-muted-foreground bg-muted cursor-not-allowed opacity-50 shadow-none'
+            )}
           >
             {isPublishing ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />

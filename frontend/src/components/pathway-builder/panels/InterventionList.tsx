@@ -108,51 +108,51 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8 text-slate-400">
-        <Loader2 className="w-5 h-5 animate-spin" />
+      <div className="flex items-center justify-center py-12 text-muted-foreground/40">
+        <Loader2 className="w-6 h-6 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="p-4">
+    <div className="p-5">
       {isTempStage && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-amber-500 leading-relaxed">
           Save the pathway first to persist this new stage, then add interventions for it.
         </div>
       )}
 
       {!isTempStage && interventions.length === 0 ? (
-        <div className="text-center py-6 text-sm text-slate-400">
+        <div className="text-center py-12 text-xs text-muted-foreground font-medium">
           No interventions defined yet
         </div>
       ) : !isTempStage ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {interventions.map((inv) => (
             <div
               key={inv.id}
-              className="flex items-center gap-2 p-2.5 border border-slate-100 rounded-lg hover:border-slate-200 transition-colors"
+              className="flex items-center gap-3 p-3.5 border border-border bg-card/50 rounded-xl hover:bg-muted/50 transition-all group"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700 truncate">
+                  <span className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">
                     {inv.name}
                   </span>
                   {inv.isCritical && (
                     <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
                   )}
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-tighter bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border">
                     {getTypeLabel(inv.interventionType)}
                   </span>
                   {inv.metadata?.libraryTemplateName && (
-                    <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] font-black uppercase tracking-tighter bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20">
                       {String(inv.metadata.libraryTemplateName)}
                     </span>
                   )}
-                  <span className="text-[10px] text-slate-400">
-                    {inv.frequencyType} | Day {inv.startDayOffset}
+                  <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-tighter ml-auto">
+                    {inv.frequencyType} • D{inv.startDayOffset}
                     {inv.endDayOffset != null ? `–${inv.endDayOffset}` : '+'}
                   </span>
                 </div>
@@ -164,15 +164,17 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
                       setEditingIntervention(inv);
                       setShowForm(true);
                     }}
-                    className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                    className="p-2 text-muted-foreground/40 hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                    title="Edit intervention"
                   >
-                    <Edit2 className="w-3.5 h-3.5" />
+                    <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(inv.id)}
-                    className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                    className="p-2 text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                    title="Delete intervention"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               )}
@@ -187,9 +189,9 @@ export function InterventionList({ stageId, isReadOnly }: InterventionListProps)
             setEditingIntervention(undefined);
             setShowForm(true);
           }}
-          className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 py-2 rounded-md border border-dashed border-blue-200 transition-colors"
+          className="mt-4 w-full flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 py-3 rounded-xl border border-dashed border-primary/30 transition-all hover:border-primary/50"
         >
-          <Plus className="w-3.5 h-3.5" />
+          <Plus className="w-4 h-4" />
           Add Intervention
         </button>
       )}

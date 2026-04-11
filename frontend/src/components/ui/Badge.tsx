@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 type BadgeVariant =
@@ -7,28 +8,28 @@ type BadgeVariant =
   | 'in_progress';
 
 const variants: Record<BadgeVariant, string> = {
-  default:    'bg-slate-100 text-slate-700 ring-slate-200',
-  neutral:    'bg-slate-100 text-slate-600 ring-slate-200',
-  success:    'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  warning:    'bg-amber-50 text-amber-700 ring-amber-200',
-  danger:     'bg-red-50 text-red-700 ring-red-200',
-  info:       'bg-blue-50 text-blue-700 ring-blue-200',
-  critical:   'bg-red-100 text-red-800 ring-red-300',
-  high:       'bg-orange-50 text-orange-700 ring-orange-200',
-  medium:     'bg-amber-50 text-amber-700 ring-amber-200',
-  low:        'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  active:     'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  pending:    'bg-amber-50 text-amber-700 ring-amber-200',
-  completed:  'bg-blue-50 text-blue-700 ring-blue-200',
-  overdue:    'bg-red-50 text-red-700 ring-red-200',
-  cancelled:  'bg-slate-100 text-slate-500 ring-slate-200',
-  paused:     'bg-purple-50 text-purple-700 ring-purple-200',
-  in_progress:'bg-sky-50 text-sky-700 ring-sky-200',
+  default:    'bg-muted/50 text-muted-foreground border-transparent',
+  neutral:    'bg-muted/50 text-muted-foreground border-transparent',
+  success:    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+  warning:    'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  danger:     'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+  info:       'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+  critical:   'bg-red-600/20 text-red-700 dark:text-red-300 border-red-600/30 font-bold',
+  high:       'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
+  medium:     'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  low:        'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+  active:     'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+  pending:    'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  completed:  'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+  overdue:    'bg-red-500/20 text-red-600 dark:text-red-400 border-red-500/30',
+  cancelled:  'bg-muted/50 text-muted-foreground border-muted-foreground/20',
+  paused:     'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+  in_progress:'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
 };
 
 const dotColors: Record<BadgeVariant, string> = {
-  default:    'bg-slate-400',
-  neutral:    'bg-slate-400',
+  default:    'bg-muted-foreground/40',
+  neutral:    'bg-muted-foreground/40',
   success:    'bg-emerald-500',
   warning:    'bg-amber-500',
   danger:     'bg-red-500',
@@ -51,21 +52,24 @@ interface BadgeProps {
   children: React.ReactNode;
   dot?: boolean;
   className?: string;
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
 }
 
 export function Badge({ variant = 'default', children, dot, className, size = 'md' }: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 font-medium ring-1 ring-inset rounded-full',
-        size === 'sm' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs',
+        'inline-flex items-center gap-1.5 font-medium border rounded-lg transition-colors',
+        size === 'xs' ? 'px-1 py-0 text-[10px]' : size === 'sm' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs',
         variants[variant],
         className,
       )}
     >
       {dot && (
-        <span className={cn('h-1.5 w-1.5 rounded-full flex-shrink-0', dotColors[variant])} />
+        <span className="relative flex h-2 w-2 mr-0.5">
+          <span className={cn('animate-ping absolute inline-flex h-full w-full rounded-full opacity-75', dotColors[variant])} />
+          <span className={cn('relative inline-flex rounded-full h-2 w-2', dotColors[variant])} />
+        </span>
       )}
       {children}
     </span>

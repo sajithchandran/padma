@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/Input';
 import { Badge, StatusBadge } from '@/components/ui/Badge';
 import api from '@/lib/api';
 import { fetchNamedCareTeams, type ApiNamedCareTeam } from '@/services/care-team.service';
+import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,14 +56,14 @@ interface PathwayMeta { total: number; page: number; limit: number; totalPages: 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const CATEGORY_COLORS: Record<string, { pill: string; bar: string; icon: string }> = {
-  diabetes:     { pill: 'bg-blue-100 text-blue-700',    bar: 'bg-blue-500',    icon: '🩸' },
-  hypertension: { pill: 'bg-red-100 text-red-700',      bar: 'bg-red-500',     icon: '❤️' },
-  cardiac:      { pill: 'bg-rose-100 text-rose-700',    bar: 'bg-rose-500',    icon: '🫀' },
-  respiratory:  { pill: 'bg-sky-100 text-sky-700',      bar: 'bg-sky-500',     icon: '🫁' },
-  wellness:     { pill: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-500', icon: '🌿' },
-  oncology:     { pill: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500',  icon: '🔬' },
-  rehab:        { pill: 'bg-amber-100 text-amber-700',  bar: 'bg-amber-500',   icon: '🏃' },
-  custom:       { pill: 'bg-slate-100 text-slate-600',  bar: 'bg-slate-400',   icon: '⚙️' },
+  diabetes:     { pill: 'bg-sapphire-500/10 text-sapphire-600 dark:text-sapphire-400', bar: 'bg-sapphire-500', icon: '🩸' },
+  hypertension: { pill: 'bg-red-500/10 text-red-600 dark:text-red-400',        bar: 'bg-red-500',      icon: '❤️' },
+  cardiac:      { pill: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',  bar: 'bg-emerald-500',  icon: '🫀' },
+  respiratory:  { pill: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',        bar: 'bg-sky-500',      icon: '🫁' },
+  wellness:     { pill: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', bar: 'bg-emerald-500', icon: '🌿' },
+  oncology:     { pill: 'bg-amethyst-500/10 text-amethyst-600 dark:text-amethyst-400', bar: 'bg-amethyst-500', icon: '🔬' },
+  rehab:        { pill: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',  bar: 'bg-amber-500',    icon: '🏃' },
+  custom:       { pill: 'bg-muted/50 text-muted-foreground',                 bar: 'bg-muted-foreground', icon: '⚙️' },
 };
 
 function getCategoryStyle(cat: string) {
@@ -80,28 +82,15 @@ function fmtDate(iso: string) {
 
 function stageTypeBadge(type: string) {
   const map: Record<string, string> = {
-    entry:        'bg-blue-100 text-blue-700',
-    intermediate: 'bg-slate-100 text-slate-600',
-    decision:     'bg-amber-100 text-amber-700',
-    terminal:     'bg-emerald-100 text-emerald-700',
+    entry:        'bg-primary/10 text-primary border-primary/20',
+    intermediate: 'bg-muted text-muted-foreground border-border',
+    decision:     'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    terminal:     'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
   };
-  return map[type] ?? 'bg-slate-100 text-slate-600';
+  return map[type] ?? 'bg-muted text-muted-foreground';
 }
 
 // ─── Create Pathway Modal ──────────────────────────────────────────────────────
-
-const CATEGORIES = ['diabetes', 'hypertension', 'cardiac', 'rehab', 'respiratory', 'oncology', 'wellness', 'custom'];
-const CARE_SETTINGS = ['outpatient', 'inpatient', 'home_care'];
-
-const BLANK_FORM = {
-  name: '', description: '', category: '', defaultDurationDays: '90',
-  applicableSettings: ['outpatient'] as string[],
-};
-
-const BLANK_STAGE = {
-  code: '', name: '', stageType: 'intermediate' as string,
-  sortOrder: 1, expectedDurationDays: '',
-};
 
 function CreatePathwayModal({
   onClose,
@@ -112,6 +101,17 @@ function CreatePathwayModal({
   onSuccess: () => void;
   careTeams: ApiNamedCareTeam[];
 }) {
+  const CATEGORIES = ['diabetes', 'hypertension', 'cardiac', 'rehab', 'respiratory', 'oncology', 'wellness', 'custom'];
+  const CARE_SETTINGS = ['outpatient', 'inpatient', 'home_care'];
+  const BLANK_FORM = {
+    name: '', description: '', category: '', defaultDurationDays: '90',
+    applicableSettings: ['outpatient'] as string[],
+  };
+  const BLANK_STAGE = {
+    code: '', name: '', stageType: 'intermediate' as string,
+    sortOrder: 1, expectedDurationDays: '',
+  };
+
   const [form, setForm]     = useState(BLANK_FORM);
   const [stages, setStages] = useState([{ ...BLANK_STAGE, stageType: 'entry', sortOrder: 1 }]);
   const [saving, setSaving] = useState(false);
@@ -190,28 +190,40 @@ function CreatePathwayModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-xl bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh]">
-
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+        onClick={onClose} 
+      />
+      <motion.div 
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="relative w-full sm:max-w-xl bg-card rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh] overflow-hidden border border-border"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/20">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">New Clinical Pathway</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Define a reusable care pathway template</p>
+            <h2 className="text-lg font-bold text-foreground font-display">New Clinical Pathway</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Define a reusable care pathway template</p>
           </div>
-          <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition">
+          <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Step tabs */}
-        <div className="flex px-6 pt-4 gap-1">
+        <div className="flex px-6 pt-4 gap-1 bg-muted/10 pb-2">
           {(['info', 'stages'] as const).map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => { if (s === 'stages' && !infoValid) return; setStep(s); }}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition ${step === s ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
+              className={cn(
+                "px-4 py-1.5 rounded-lg text-xs font-bold transition-all",
+                step === s ? "bg-primary text-white shadow-md shadow-primary/20" : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              )}
             >
               {s === 'info' ? '1. Pathway Info' : '2. Stages'}
             </button>
@@ -219,107 +231,101 @@ function CreatePathwayModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4 custom-scrollbar">
             {error && (
-              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200">
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
                 <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
 
             {step === 'info' && (
               <>
-                <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
-                  Pathway code will be generated automatically on create using the tenant pathway code format.
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs text-primary font-medium tracking-tight">
+                  Pathway code will be generated automatically using the tenant format.
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Category <span className="text-red-500">*</span></label>
-                  <select value={form.category} onChange={(e) => set('category', e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition">
-                    <option value="">Select…</option>
-                    {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Pathway Name <span className="text-red-500">*</span></label>
-                  <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Type 2 Diabetes — Intensive Management"
-                    className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Description</label>
-                  <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={2}
-                    placeholder="Brief description of the pathway's purpose and target patient population…"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Default Duration (days) <span className="text-red-500">*</span></label>
-                  <input type="number" min={1} value={form.defaultDurationDays} onChange={(e) => set('defaultDurationDays', e.target.value)}
-                    className="w-40 h-10 px-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition" />
-                  <span className="ml-2 text-xs text-slate-500">≈ {fmtDuration(Number(form.defaultDurationDays) || 0)}</span>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-2">Applicable Care Settings <span className="text-red-500">*</span></label>
-                  <div className="flex gap-2 flex-wrap">
-                    {CARE_SETTINGS.map((s) => (
-                      <button key={s} type="button" onClick={() => toggleSetting(s)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${form.applicableSettings.includes(s) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'}`}>
-                        {s.replace('_', ' ')}
-                      </button>
-                    ))}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wider mb-1.5">Category *</label>
+                    <select value={form.category} onChange={(e) => set('category', e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-border text-sm bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition">
+                      <option value="">Select category…</option>
+                      {CATEGORIES.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                    </select>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Default Care Team</label>
-                  <select
-                    value={careTeamId}
-                    onChange={(e) => setCareTeamId(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
-                  >
-                    <option value="">No default care team</option>
-                    {careTeams.map((team) => (
-                      <option key={team.id} value={team.id}>
-                        {team.name} ({team.memberCount} members)
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Reuse a named care team as the default team for new enrollments in this pathway.
-                  </p>
+                  <div>
+                    <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wider mb-1.5">Pathway Name *</label>
+                    <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Type 2 Diabetes Management" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wider mb-1.5">Description</label>
+                    <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3}
+                      placeholder="Brief description of the pathway purpose…"
+                      className="w-full px-3 py-2.5 rounded-xl border border-border bg-muted/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition" />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wider mb-1.5">Duration (days) *</label>
+                      <Input type="number" min={1} value={form.defaultDurationDays} onChange={(e) => set('defaultDurationDays', e.target.value)}
+                        className="w-full" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wider mb-1.5">Care Team</label>
+                      <select value={careTeamId} onChange={(e) => setCareTeamId(e.target.value)}
+                        className="w-full h-10 px-3 rounded-xl border border-border text-sm bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition">
+                        <option value="">No default team</option>
+                        {careTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-foreground/70 uppercase tracking-wider mb-2">Applicable Care Settings *</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {CARE_SETTINGS.map((s) => (
+                        <button key={s} type="button" onClick={() => toggleSetting(s)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-bold border transition-all",
+                            form.applicableSettings.includes(s) 
+                              ? "bg-primary text-white border-primary shadow-sm" 
+                              : "bg-muted/50 text-muted-foreground border-border hover:border-primary/40"
+                          )}>
+                          {s.replace('_', ' ')}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </>
             )}
 
             {step === 'stages' && (
               <div className="space-y-3">
-                <p className="text-xs text-slate-500">Define the stages of this pathway. One stage must be marked as <strong>Entry</strong>.</p>
                 {stages.map((stage, i) => (
-                  <div key={i} className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+                  <div key={i} className="p-4 rounded-2xl border border-border bg-muted/10 space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-500">Stage {i + 1}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Stage {i + 1}</span>
                       {stages.length > 1 && (
-                        <button type="button" onClick={() => removeStage(i)} className="text-slate-400 hover:text-red-500 transition">
-                          <X className="h-3.5 w-3.5" />
+                        <button type="button" onClick={() => removeStage(i)} className="text-muted-foreground hover:text-red-500 transition">
+                          <X className="h-4 w-4" />
                         </button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-600 mb-1">Code *</label>
+                        <label className="block text-[10px] font-bold text-foreground/60 uppercase tracking-wider mb-1">Code *</label>
                         <input value={stage.code} onChange={(e) => updateStage(i, 'code', e.target.value)}
-                          placeholder="INITIAL-ASSESSMENT"
-                          className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition" />
+                          placeholder="ASSESSMENT"
+                          className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs font-bold font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition" />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-600 mb-1">Type *</label>
+                        <label className="block text-[10px] font-bold text-foreground/60 uppercase tracking-wider mb-1">Type *</label>
                         <select value={stage.stageType} onChange={(e) => updateStage(i, 'stageType', e.target.value)}
-                          className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition">
+                          className="w-full h-9 px-2 rounded-lg border border-border bg-background text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition">
                           <option value="entry">Entry</option>
                           <option value="intermediate">Intermediate</option>
                           <option value="decision">Decision</option>
@@ -327,65 +333,43 @@ function CreatePathwayModal({
                         </select>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] font-medium text-slate-600 mb-1">Name *</label>
+                    <div>
+                        <label className="block text-[10px] font-bold text-foreground/60 uppercase tracking-wider mb-1">Name *</label>
                         <input value={stage.name} onChange={(e) => updateStage(i, 'name', e.target.value)}
-                          placeholder="Initial Assessment"
-                          className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-medium text-slate-600 mb-1">Duration (days)</label>
-                        <input type="number" min={1} value={stage.expectedDurationDays}
-                          onChange={(e) => updateStage(i, 'expectedDurationDays', e.target.value)}
-                          placeholder="e.g. 30"
-                          className="w-full h-9 px-2.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition" />
-                      </div>
+                          placeholder="Stage name"
+                          className="w-full h-9 px-3 rounded-lg border border-border bg-background text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition" />
                     </div>
                   </div>
                 ))}
 
                 <button type="button" onClick={addStage}
-                  className="w-full py-2 rounded-xl border-2 border-dashed border-slate-300 text-xs font-medium text-slate-500 hover:border-blue-400 hover:text-blue-600 transition flex items-center justify-center gap-1.5">
-                  <Plus className="h-3.5 w-3.5" /> Add Stage
+                  className="w-full py-4 rounded-2xl border-2 border-dashed border-border text-xs font-bold text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2">
+                  <Plus className="h-4 w-4" /> Add Gateway Stage
                 </button>
-
-                {stages.filter((s) => s.stageType === 'entry').length !== 1 && (
-                  <p className="text-xs text-amber-600 flex items-center gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5" /> Exactly one stage must have type <strong>Entry</strong>.
-                  </p>
-                )}
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-3 bg-white">
-            <button type="button" onClick={onClose} className="text-sm text-slate-500 hover:text-slate-700 transition">Cancel</button>
+          <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 bg-muted/20">
+            <button type="button" onClick={onClose} className="text-sm font-bold text-muted-foreground hover:text-foreground transition">Cancel</button>
             <div className="flex gap-2">
-              {step === 'info' && (
-                <button type="button" disabled={!infoValid} onClick={() => setStep('stages')}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
-                  Next: Stages <ChevronRight className="h-4 w-4" />
-                </button>
-              )}
-              {step === 'stages' && (
+              {step === 'info' ? (
+                <Button disabled={!infoValid} onClick={() => setStep('stages')} iconRight={<ChevronRight className="h-4 w-4" />}>
+                  Define Stages
+                </Button>
+              ) : (
                 <>
-                  <button type="button" onClick={() => setStep('info')}
-                    className="px-4 py-2 rounded-xl border border-slate-300 text-sm text-slate-600 hover:bg-slate-50 transition">
-                    Back
-                  </button>
-                  <button type="submit" disabled={!stagesValid || saving}
-                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed">
-                    {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {saving ? 'Creating…' : 'Create Pathway'}
-                  </button>
+                  <Button variant="outline" onClick={() => setStep('info')}>Back</Button>
+                  <Button onClick={handleSubmit} loading={saving} disabled={!stagesValid}>
+                    Create Pathway
+                  </Button>
                 </>
               )}
             </div>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -421,18 +405,15 @@ function PathwayDetailDrawer({
 
   async function handleSaveCareTeam() {
     if (pathway.status === 'active') return;
-
     setSavingCareTeam(true);
     setCareTeamError(null);
-
     try {
       const res = await api.put<Pathway>(`/pathways/${pathway.id}`, {
         careTeamId: selectedCareTeamId || null,
       });
       onPathwayUpdated(res.data);
     } catch (err: any) {
-      const msg = err?.response?.data?.message;
-      setCareTeamError(Array.isArray(msg) ? msg.join(', ') : (msg ?? 'Failed to update care team mapping.'));
+      setCareTeamError(err?.response?.data?.message ?? 'Failed to update care team.');
     } finally {
       setSavingCareTeam(false);
     }
@@ -440,172 +421,128 @@ function PathwayDetailDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white shadow-2xl flex flex-col h-full overflow-hidden">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+        onClick={onClose} 
+      />
+      <motion.div 
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        className="relative w-full max-w-md bg-card shadow-2xl flex flex-col h-full overflow-hidden border-l border-border"
+      >
+        <div className={cn("h-1.5 w-full", cat.bar)} />
 
-        {/* Top bar */}
-        <div className={`h-1 w-full ${cat.bar}`} />
-
-        <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100">
+        <div className="flex items-start justify-between px-6 py-6 border-b border-border">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-xs font-mono font-semibold text-slate-500">{pathway.code}</span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cat.pill}`}>
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <span className="text-[10px] font-bold font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-lg border border-border uppercase tracking-tight">
+                {pathway.code}
+              </span>
+              <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide", cat.pill)}>
                 {cat.icon} {pathway.category}
               </span>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pathway.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                {pathway.status}
-              </span>
+              <StatusBadge status={pathway.status} />
             </div>
-            <h2 className="text-base font-bold text-slate-900 leading-snug">{pathway.name}</h2>
-            {pathway.description && <p className="text-xs text-slate-500 mt-1">{pathway.description}</p>}
+            <h2 className="text-xl font-bold text-foreground font-display leading-tight">{pathway.name}</h2>
+            {pathway.description && <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{pathway.description}</p>}
           </div>
-          <button onClick={onClose} className="ml-3 h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition flex-shrink-0">
-            <X className="h-4 w-4" />
+          <button onClick={onClose} className="ml-4 h-9 w-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all border border-transparent hover:border-border">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="px-6 py-3 border-b border-slate-100 bg-slate-50">
-          <Link
-            href={`/pathways/${pathway.id}/builder`}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            <Settings className="h-4 w-4" />
-            Open Builder
-          </Link>
+        <div className="px-6 py-4 border-b border-border bg-muted/20">
+          <Button asChild block>
+            <Link href={`/pathways/${pathway.id}/builder`} className="flex items-center gap-2 justify-center">
+              <Settings className="h-4 w-4" />
+              Open Pathway Builder
+            </Link>
+          </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-
-          {/* Key metrics */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 custom-scrollbar">
           <div className="grid grid-cols-3 gap-3">
             {[
-              { icon: <Clock className="h-4 w-4 text-slate-400" />, label: 'Duration', value: fmtDuration(pathway.defaultDurationDays) },
-              { icon: <Layers className="h-4 w-4 text-slate-400" />, label: 'Stages', value: pathway.stages.length },
-              { icon: <Users className="h-4 w-4 text-slate-400" />, label: 'Enrolled', value: pathway._count?.enrollments ?? 0 },
+              { icon: <Clock className="h-4 w-4 text-primary" />, label: 'Duration', value: fmtDuration(pathway.defaultDurationDays) },
+              { icon: <Layers className="h-4 w-4 text-amethyst-500" />, label: 'Stages', value: pathway.stages.length },
+              { icon: <Users className="h-4 w-4 text-emerald-500" />, label: 'Enrolled', value: pathway._count?.enrollments ?? 0 },
             ].map((m) => (
-              <div key={m.label} className="bg-slate-50 rounded-xl p-3 text-center">
-                <div className="flex justify-center mb-1">{m.icon}</div>
-                <p className="text-lg font-bold text-slate-900">{m.value}</p>
-                <p className="text-[10px] text-slate-500">{m.label}</p>
+              <div key={m.label} className="bg-muted/30 border border-border/50 rounded-2xl p-3 text-center transition-all hover:bg-muted/50">
+                <div className="flex justify-center mb-1.5 opacity-80">{m.icon}</div>
+                <p className="text-lg font-bold text-foreground font-display">{m.value}</p>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{m.label}</p>
               </div>
             ))}
           </div>
 
-          {/* Care settings */}
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Applicable Settings</p>
-            <div className="flex flex-wrap gap-2">
-              {pathway.applicableSettings.map((s) => (
-                <span key={s} className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium">
-                  {s.replace('_', ' ')}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Default Care Team</p>
-            {pathway.status === 'draft' ? (
-              <div className="space-y-3">
-                <select
-                  value={selectedCareTeamId}
-                  onChange={(e) => setSelectedCareTeamId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
-                >
-                  <option value="">No default care team</option>
-                  {careTeams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name} ({team.memberCount} members)
-                    </option>
-                  ))}
-                </select>
-                {careTeamError && <p className="text-xs text-red-600">{careTeamError}</p>}
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs text-slate-500">
-                    Draft pathways can map a named care team that enrollment can reuse later.
-                  </p>
-                  <button
-                    onClick={handleSaveCareTeam}
-                    disabled={savingCareTeam}
-                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                  >
-                    {savingCareTeam ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-sm font-medium text-slate-900">
-                  {pathway.careTeam?.name ?? 'No default care team mapped'}
-                </p>
-                {pathway.careTeam && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    {pathway.careTeam._count?.members ?? 0} members
-                    {pathway.careTeam.description ? ` · ${pathway.careTeam.description}` : ''}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Stages timeline */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Pathway Stages</p>
-            <div className="relative">
-              {/* Connector line */}
-              <div className="absolute left-3.5 top-4 bottom-4 w-px bg-slate-200" />
-              <div className="space-y-3">
-                {[...pathway.stages].sort((a, b) => a.sortOrder - b.sortOrder).map((stage, i) => (
-                  <div key={stage.id} className="relative flex items-start gap-3 pl-9">
-                    <div className={`absolute left-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white shadow-sm z-10 ${
-                      stage.stageType === 'entry' ? 'bg-blue-500 text-white' :
-                      stage.stageType === 'terminal' ? 'bg-emerald-500 text-white' :
-                      stage.stageType === 'decision' ? 'bg-amber-500 text-white' :
-                      'bg-slate-200 text-slate-600'
-                    }`}>
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 bg-white border border-slate-200 rounded-xl p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">{stage.name}</p>
-                          <p className="text-[10px] font-mono text-slate-400 mt-0.5">{stage.code}</p>
-                        </div>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${stageTypeBadge(stage.stageType)}`}>
-                          {stage.stageType}
-                        </span>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Pathway Stages Flow</p>
+            <div className="relative space-y-4">
+              <div className="absolute left-[13px] top-6 bottom-6 w-0.5 bg-border/40" />
+              {[...pathway.stages].sort((a, b) => a.sortOrder - b.sortOrder).map((stage, i) => (
+                <div key={stage.id} className="relative flex items-start gap-4 pl-8 group">
+                  <div className={cn(
+                    "absolute left-0 h-[28px] w-[28px] rounded-xl flex items-center justify-center text-[11px] font-bold border-2 border-card shadow-sm z-10 transition-transform group-hover:scale-110",
+                    stage.stageType === 'entry' ? "bg-primary text-white" :
+                    stage.stageType === 'terminal' ? "bg-emerald-500 text-white" :
+                    stage.stageType === 'decision' ? "bg-amber-500 text-white" :
+                    "bg-muted text-muted-foreground border-border"
+                  )}>
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 bg-muted/20 border border-border/60 rounded-2xl p-4 transition-all group-hover:bg-muted/40 group-hover:border-border">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground leading-tight">{stage.name}</p>
+                        <p className="text-[10px] font-bold font-mono text-muted-foreground mt-1 opacity-60 uppercase tracking-tighter">{stage.code}</p>
                       </div>
-                      {stage.expectedDurationDays && (
-                        <p className="text-[10px] text-slate-500 mt-1.5 flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> ~{fmtDuration(stage.expectedDurationDays)}
-                        </p>
-                      )}
+                      <Badge variant={stage.stageType === 'entry' ? 'info' : stage.stageType === 'terminal' ? 'success' : stage.stageType === 'decision' ? 'warning' : 'neutral'} size="xs">
+                        {stage.stageType}
+                      </Badge>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Metadata */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Info</p>
-            <div className="space-y-1.5 text-xs">
-              {[
-                ['Version', `v${pathway.version}`],
-                ['Created', fmtDate(pathway.createdAt)],
-                ['Updated', fmtDate(pathway.updatedAt)],
-              ].map(([label, value]) => (
-                <div key={label} className="flex justify-between">
-                  <span className="text-slate-500">{label}</span>
-                  <span className="font-medium text-slate-700">{value}</span>
                 </div>
               ))}
             </div>
           </div>
+
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Management</p>
+            <Card padding="sm" className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Primary Care Team</label>
+                {pathway.status === 'draft' ? (
+                  <div className="space-y-3">
+                    <select
+                      value={selectedCareTeamId}
+                      onChange={(e) => setSelectedCareTeamId(e.target.value)}
+                      className="w-full h-10 px-3 rounded-xl border border-border bg-muted/20 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+                    >
+                      <option value="">No default team mapped</option>
+                      {careTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                    </select>
+                    <Button block size="sm" onClick={handleSaveCareTeam} loading={savingCareTeam}>Save Team Config</Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-foreground">{pathway.careTeam?.name ?? 'Unassigned'}</p>
+                      <p className="text-[10px] text-muted-foreground font-bold tracking-tight">{pathway.careTeam?._count?.members ?? 0} team members</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -616,84 +553,70 @@ function PathwayCard({ pathway, onClick }: { pathway: Pathway; onClick: () => vo
   const cat = getCategoryStyle(pathway.category);
 
   return (
-    <button
-      onClick={onClick}
-      className="text-left w-full bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-150 overflow-hidden group"
-    >
-      {/* Category colour bar */}
-      <div className={`h-1 w-full ${cat.bar}`} />
-
-      <div className="p-5">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-4">
+    <Card hover onClick={onClick} padding="none" className="group cursor-pointer overflow-hidden text-left border-border/60 hover:border-primary/30">
+      <div className={cn("h-1.5 w-full", cat.bar)} />
+      <div className="p-6">
+        <div className="flex items-start justify-between gap-3 mb-5">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1.5">
-              <span className="text-[10px] font-mono font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+            <div className="flex items-center gap-2 flex-wrap mb-2">
+              <span className="text-[10px] font-bold font-mono text-muted-foreground/60 bg-muted/40 px-2 py-0.5 rounded-lg border border-border tracking-tighter">
                 {pathway.code}
               </span>
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${cat.pill}`}>
+              <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide", cat.pill)}>
                 {cat.icon} {pathway.category}
               </span>
             </div>
-            <h3 className="text-sm font-bold text-slate-900 leading-snug group-hover:text-blue-600 transition-colors">
+            <h3 className="text-base font-bold text-foreground leading-tight font-display transition-colors group-hover:text-primary">
               {pathway.name}
             </h3>
             {pathway.description && (
-              <p className="text-xs text-slate-500 mt-1 line-clamp-2">{pathway.description}</p>
+              <p className="text-xs text-muted-foreground mt-2 line-clamp-2 leading-relaxed opacity-80">{pathway.description}</p>
             )}
           </div>
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${
-            pathway.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-            pathway.status === 'draft'  ? 'bg-amber-100 text-amber-700' :
-            'bg-slate-100 text-slate-600'
-          }`}>
-            {pathway.status}
-          </span>
+          <StatusBadge status={pathway.status} />
         </div>
 
-        {/* Stages mini-timeline */}
-        <div className="flex items-center gap-1 mb-4 flex-wrap">
+        <div className="flex items-center gap-1.5 mb-6 overflow-x-auto no-scrollbar">
           {[...pathway.stages]
             .sort((a, b) => a.sortOrder - b.sortOrder)
             .map((stage, i) => (
               <div key={stage.id} className="flex items-center gap-1">
-                <span className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                  stage.stageType === 'entry' ? 'bg-blue-400' :
+                <span className={cn(
+                  "h-2.5 w-2.5 rounded-full transition-all group-hover:scale-125",
+                  stage.stageType === 'entry' ? 'bg-primary shadow-[0_0_8px_rgba(59,130,246,0.3)]' :
                   stage.stageType === 'terminal' ? 'bg-emerald-400' :
                   stage.stageType === 'decision' ? 'bg-amber-400' :
-                  'bg-slate-300'
-                }`} title={stage.name} />
-                {i < pathway.stages.length - 1 && <span className="h-px w-3 bg-slate-200" />}
+                  'bg-border'
+                )} title={stage.name} />
+                {i < pathway.stages.length - 1 && <span className="h-0.5 w-4 bg-border/40" />}
               </div>
             ))}
-          <span className="text-[10px] text-slate-400 ml-1">{pathway.stages.length} stages</span>
+          <span className="text-[10px] font-bold text-muted-foreground uppercase ml-2 tracking-widest opacity-60">{pathway.stages.length} stages</span>
         </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100">
+        <div className="grid grid-cols-3 gap-2 pt-4 border-t border-border/40">
           <div className="text-center">
-            <p className="text-sm font-bold text-slate-900">{fmtDuration(pathway.defaultDurationDays)}</p>
-            <p className="text-[10px] text-slate-400">Duration</p>
+            <p className="text-sm font-bold text-foreground font-display">{fmtDuration(pathway.defaultDurationDays)}</p>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter opacity-70">Duration</p>
           </div>
           <div className="text-center">
-            <p className="text-sm font-bold text-slate-900">{pathway._count?.enrollments ?? 0}</p>
-            <p className="text-[10px] text-slate-400">Enrolled</p>
+            <p className="text-sm font-bold text-foreground font-display">{pathway._count?.enrollments ?? 0}</p>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter opacity-70">Enrolled</p>
           </div>
           <div className="text-center">
-            <p className="text-sm font-bold text-slate-900">v{pathway.version}</p>
-            <p className="text-[10px] text-slate-400">Version</p>
+            <p className="text-sm font-bold text-foreground font-display">v{pathway.version}</p>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter opacity-70">Version</p>
           </div>
         </div>
       </div>
-    </button>
+    </Card>
   );
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
-const CATEGORY_FILTERS = ['ALL', 'diabetes', 'hypertension', 'cardiac', 'respiratory', 'wellness', 'oncology', 'rehab', 'custom'];
-
 export default function PathwaysPage() {
+  const CATEGORY_FILTERS = ['ALL', 'diabetes', 'hypertension', 'cardiac', 'respiratory', 'wellness', 'oncology', 'rehab', 'custom'];
   const [pathways, setPathways]     = useState<Pathway[]>([]);
   const [meta, setMeta]             = useState<PathwayMeta | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -746,150 +669,162 @@ export default function PathwaysPage() {
   }), [pathways]);
 
   return (
-    <div className="space-y-5">
-
+    <div className="space-y-6">
       {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Pathways', value: stats.total,   icon: <Route className="h-5 w-5 text-violet-500" />,   bg: 'bg-violet-50' },
-          { label: 'Active',         value: stats.active,  icon: <PlayCircle className="h-5 w-5 text-emerald-500" />, bg: 'bg-emerald-50' },
-          { label: 'Draft',          value: stats.draft,   icon: <PauseCircle className="h-5 w-5 text-amber-500" />, bg: 'bg-amber-50' },
-          { label: 'Total Enrolled', value: stats.enrolled,icon: <Users className="h-5 w-5 text-blue-500" />,      bg: 'bg-blue-50' },
-        ].map((s) => (
-          <Card key={s.label} padding="sm">
-            <div className="flex items-center gap-3">
-              <div className={`h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0 ${s.bg}`}>{s.icon}</div>
-              <div>
-                <p className="text-xs text-slate-500">{s.label}</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {loading ? <span className="inline-block h-5 w-8 bg-slate-200 rounded animate-pulse" /> : s.value}
-                </p>
+          { label: 'Total Pathways', value: stats.total,   icon: <Route className="h-5 w-5" />,   color: 'text-amethyst-500', bg: 'bg-amethyst-500/10' },
+          { label: 'Active Status',  value: stats.active,  icon: <PlayCircle className="h-5 w-5" />, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: 'Draft Templates',value: stats.draft,   icon: <PauseCircle className="h-5 w-5" />, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: 'Total Enrolled', value: stats.enrolled,icon: <Users className="h-5 w-5" />,      color: 'text-primary', bg: 'bg-primary/10' },
+        ].map((s, idx) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.05 }}
+          >
+            <Card padding="sm" className="border-border/60 hover:border-primary/20 transition-all">
+              <div className="flex items-center gap-4">
+                <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm", s.bg, s.color)}>{s.icon}</div>
+                <div>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{s.label}</p>
+                  <p className="text-2xl font-bold text-foreground font-display mt-0.5">
+                    {loading ? <span className="inline-block h-6 w-12 bg-muted rounded animate-pulse" /> : s.value}
+                  </p>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </motion.div>
         ))}
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 items-center">
+        <div className="w-full sm:flex-1">
           <Input
-            placeholder="Search pathways, codes, categories…"
+            placeholder="Search clinical pathways, codes, categories…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             icon={<Search className="h-4 w-4" />}
           />
         </div>
-        <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)}>
-          New Pathway
-        </Button>
+        <div className="flex w-full sm:w-auto gap-2">
+           <Button icon={<Plus className="h-4 w-4" />} onClick={() => setShowCreate(true)} className="w-full sm:w-auto">
+            New Pathway
+          </Button>
+        </div>
       </div>
 
-      {/* Category filter pills */}
-      <div className="flex gap-1.5 flex-wrap">
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mr-1">Filter by</span>
         {CATEGORY_FILTERS.map((cat) => (
           <button
             key={cat}
             onClick={() => setCatFilter(cat)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+            className={cn(
+              "px-4 py-1.5 rounded-xl text-xs font-bold transition-all border",
               categoryFilter === cat
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+                ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
+                : "bg-muted/40 text-muted-foreground border-border hover:border-primary/30 hover:bg-muted/60"
+            )}
           >
-            {cat === 'ALL' ? 'All Categories' : `${CATEGORY_COLORS[cat]?.icon ?? ''} ${cat.charAt(0).toUpperCase() + cat.slice(1)}`}
+            {cat === 'ALL' ? 'All Pathways' : `${CATEGORY_COLORS[cat]?.icon ?? ''} ${cat.charAt(0).toUpperCase() + cat.slice(1)}`}
           </button>
         ))}
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="flex items-center gap-2.5 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 flex-shrink-0" />
-          {error}
-          <button onClick={fetchPathways} className="ml-auto text-xs underline font-medium hover:no-underline">Retry</button>
-        </div>
-      )}
-
-      {/* Loading skeleton */}
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-slate-200 overflow-hidden animate-pulse">
-              <div className="h-1 bg-slate-200 w-full" />
-              <div className="p-5 space-y-3">
-                <div className="h-3 bg-slate-200 rounded w-24" />
-                <div className="h-4 bg-slate-200 rounded w-3/4" />
-                <div className="h-3 bg-slate-100 rounded w-full" />
-                <div className="h-3 bg-slate-100 rounded w-1/2" />
-                <div className="flex gap-1 mt-4">
-                  {[1,2,3].map((x) => <div key={x} className="h-2 w-2 rounded-full bg-slate-200" />)}
-                </div>
-                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100">
-                  {[1,2,3].map((x) => <div key={x} className="h-8 bg-slate-100 rounded-lg" />)}
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div 
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+          >
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-card rounded-2xl border border-border overflow-hidden animate-pulse p-6">
+                <div className="h-1 bg-muted w-full mb-6" />
+                <div className="space-y-4">
+                  <div className="h-4 bg-muted rounded w-24" />
+                  <div className="h-6 bg-muted rounded w-3/4" />
+                  <div className="space-y-2">
+                    <div className="h-3 bg-muted rounded w-full opacity-60" />
+                    <div className="h-3 bg-muted rounded w-1/2 opacity-60" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-border">
+                    {[1,2,3].map((x) => <div key={x} className="h-10 bg-muted rounded-xl" />)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Pathway grid */}
-      {!loading && !error && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            ))}
+          </motion.div>
+        ) : error ? (
+           <motion.div 
+              key="error"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-20 bg-card rounded-3xl border border-border border-dashed"
+            >
+              <div className="h-16 w-16 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500 mb-4">
+                <AlertCircle className="h-8 w-8" />
+              </div>
+              <p className="text-base font-bold text-foreground">Failed to load content</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-xs text-center">{error}</p>
+              <Button variant="outline" size="sm" onClick={fetchPathways} className="mt-6">Retry Request</Button>
+            </motion.div>
+        ) : (
+          <motion.div 
+            key="grid"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+          >
             {filtered.map((pw) => (
               <PathwayCard key={pw.id} pathway={pw} onClick={() => setSelected(pw)} />
             ))}
 
             {filtered.length === 0 && (
-              <div className="col-span-full py-20 text-center">
-                <Route className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm font-semibold text-slate-700">No pathways found</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {search ? 'Try adjusting your search or category filter.' : 'Create your first clinical pathway to get started.'}
+              <div className="col-span-full py-32 text-center bg-card rounded-3xl border border-border border-dashed">
+                <Route className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <p className="text-lg font-bold text-foreground">No matching pathways</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {search ? `We couldn't find any results for "${search}"` : 'No templates found in this category.'}
                 </p>
-                {!search && (
-                  <button onClick={() => setShowCreate(true)}
-                    className="mt-4 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition">
-                    + New Pathway
-                  </button>
-                )}
+                <Button variant="outline" className="mt-8" onClick={() => { setSearch(''); setCatFilter('ALL'); }}>Clear all filters</Button>
               </div>
             )}
-          </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {meta && meta.total > 0 && (
-            <p className="text-xs text-slate-400 text-center">
-              Showing {filtered.length} of {meta.total} pathway{meta.total !== 1 ? 's' : ''}
-            </p>
-          )}
-        </>
-      )}
+      <AnimatePresence>
+        {selected && (
+          <PathwayDetailDrawer
+            pathway={selected}
+            onClose={() => setSelected(null)}
+            careTeams={careTeams}
+            onPathwayUpdated={(updated) => {
+              setSelected(updated);
+              setPathways((current) => current.map((item) => (
+                item.id === updated.id ? { ...item, ...updated, _count: updated._count ?? item._count } : item
+              )));
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-      {/* Detail drawer */}
-      {selected && (
-        <PathwayDetailDrawer
-          pathway={selected}
-          onClose={() => setSelected(null)}
-          careTeams={careTeams}
-          onPathwayUpdated={(updated) => {
-            setSelected(updated);
-            setPathways((current) => current.map((item) => (
-              item.id === updated.id ? { ...item, ...updated, _count: updated._count ?? item._count } : item
-            )));
-          }}
-        />
-      )}
-
-      {/* Create modal */}
-      {showCreate && (
-        <CreatePathwayModal
-          onClose={() => setShowCreate(false)}
-          onSuccess={() => { setShowCreate(false); fetchPathways(); }}
-          careTeams={careTeams}
-        />
-      )}
+      <AnimatePresence>
+        {showCreate && (
+          <CreatePathwayModal
+            onClose={() => setShowCreate(false)}
+            onSuccess={() => { setShowCreate(false); fetchPathways(); }}
+            careTeams={careTeams}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

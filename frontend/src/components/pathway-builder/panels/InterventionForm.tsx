@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { BookCopy, Loader2, Search, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { ApiCareTaskTemplate, ApiIntervention } from '@/types/pathway-builder.types';
 import {
   INTERVENTION_TYPES,
@@ -111,39 +112,41 @@ export function InterventionForm({
   };
 
   const inputCls =
-    'w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const labelCls = 'block text-xs font-medium text-slate-500 mb-1';
+    'w-full text-sm border border-border bg-card rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:bg-muted disabled:text-muted-foreground/50 transition-all';
+  const labelCls = 'block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 ml-1';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/20">
+          <h3 className="font-bold text-foreground">
             {isEdit ? 'Edit Intervention' : 'Add Intervention'}
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
           {!isEdit && (
-            <div className="flex gap-2 rounded-lg bg-slate-100 p-1">
+            <div className="flex gap-2 rounded-xl bg-muted p-1 border border-border">
               <button
                 type="button"
                 onClick={() => setMode('new')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === 'new' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
+                className={cn(
+                  "flex-1 rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                  mode === 'new' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
               >
                 Create New
               </button>
               <button
                 type="button"
                 onClick={() => setMode('library')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  mode === 'library' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
+                className={cn(
+                  "flex-1 rounded-lg px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-all",
+                  mode === 'library' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
               >
                 Select From Library
               </button>
@@ -155,7 +158,7 @@ export function InterventionForm({
               <div>
                 <label className={labelCls}>Search Library</label>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/40" />
                   <input
                     className={`${inputCls} pl-9`}
                     value={libraryQuery}
@@ -166,18 +169,18 @@ export function InterventionForm({
               </div>
 
               {libraryError && (
-                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-500 font-bold">
                   {libraryError}
                 </div>
               )}
 
-              <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2">
+              <div className="max-h-[420px] space-y-2 overflow-y-auto rounded-xl border border-border p-2 custom-scrollbar">
                 {libraryLoading ? (
-                  <div className="flex items-center justify-center py-8 text-slate-400">
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                  <div className="flex items-center justify-center py-12 text-muted-foreground/40">
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
                 ) : libraryTemplates.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-slate-400">
+                  <div className="py-12 text-center text-xs text-muted-foreground">
                     No reusable task templates found
                   </div>
                 ) : (
@@ -186,30 +189,36 @@ export function InterventionForm({
                       key={template.id}
                       type="button"
                       onClick={() => applyTemplate(template)}
-                      className="w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50"
+                      className="w-full rounded-xl border border-border p-4 text-left transition hover:border-primary/50 hover:bg-primary/5 group"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium text-slate-800">
+                            <span className="truncate text-sm font-bold text-foreground group-hover:text-primary transition-colors">
                               {template.name}
                             </span>
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">
+                            <span className="rounded-full bg-muted border border-border px-2 py-0.5 text-[10px] uppercase font-bold text-muted-foreground">
                               {template.interventionType}
                             </span>
                           </div>
                           {template.description && (
-                            <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground/80 leading-relaxed">
                               {template.description}
                             </p>
                           )}
-                          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                          <div className="mt-2 flex flex-wrap gap-3 text-[10px] font-bold uppercase tracking-tighter text-muted-foreground/60">
                             <span>{template.frequencyType}</span>
+                            <span className="opacity-40">|</span>
                             <span>Day {template.startDayOffset}{template.endDayOffset != null ? `-${template.endDayOffset}` : '+'}</span>
-                            {template.defaultOwnerRole && <span>{template.defaultOwnerRole}</span>}
+                            {template.defaultOwnerRole && (
+                              <>
+                                <span className="opacity-40">|</span>
+                                <span>{template.defaultOwnerRole}</span>
+                              </>
+                            )}
                           </div>
                         </div>
-                        <span className="shrink-0 rounded-md bg-blue-600 px-2 py-1 text-xs font-medium text-white">
+                        <span className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-primary-foreground shadow-sm">
                           Use
                         </span>
                       </div>
@@ -221,18 +230,18 @@ export function InterventionForm({
           ) : (
             <>
               {!isEdit && selectedTemplate && (
-                <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5">
+                <div className="flex items-start justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 text-xs font-medium text-blue-900">
+                    <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary">
                       <BookCopy className="h-3.5 w-3.5" />
                       Prefilled from library
                     </p>
-                    <p className="mt-1 text-sm text-blue-800">{selectedTemplate.name}</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{selectedTemplate.name}</p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setMode('library')}
-                    className="shrink-0 text-xs font-medium text-blue-700 hover:text-blue-800"
+                    className="shrink-0 text-xs font-bold text-primary hover:underline"
                   >
                     Change
                   </button>
@@ -363,54 +372,55 @@ export function InterventionForm({
                 max={5}
               />
             </div>
-            <div className="flex items-end pb-1">
-              <label className="flex items-center gap-2 text-sm text-slate-600">
+            <div className="flex items-end pb-1.5">
+              <label className="flex items-center gap-2.5 text-xs font-bold text-foreground cursor-pointer group">
                 <input
                   type="checkbox"
                   checked={form.isCritical}
                   onChange={(e) => setForm((p) => ({ ...p, isCritical: e.target.checked }))}
-                  className="rounded border-slate-300 text-red-600 focus:ring-red-500"
+                  className="w-4 h-4 rounded border-border bg-muted text-red-500 focus:ring-red-500/30 transition-all cursor-pointer"
                 />
-                Critical intervention
+                Critical
               </label>
             </div>
           </div>
 
           {!isEdit && (
-            <label className="flex items-center gap-2 text-sm text-slate-600">
+            <label className="flex items-center gap-2.5 text-xs font-bold text-foreground cursor-pointer group pt-2">
               <input
                 type="checkbox"
                 checked={saveToLibrary}
                 onChange={(e) => setSaveToLibrary(e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="w-4 h-4 rounded border-border bg-muted text-primary focus:ring-primary/30 transition-all cursor-pointer"
               />
               Save as reusable task template in library
             </label>
           )}
             </>
           )}
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm text-slate-600 hover:text-slate-800 px-4 py-2 rounded-md hover:bg-slate-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving || mode === 'library' || !form.name}
-              className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md shadow-sm transition-colors disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="w-4 h-4 animate-spin inline mr-1" />
-              ) : null}
-              {isEdit ? 'Update' : 'Create'}
-            </button>
-          </div>
         </form>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-2 p-5 border-t border-border bg-muted/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground px-5 py-2.5 rounded-lg hover:bg-muted transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={saving || (mode === 'library' && !isEdit) || !form.name}
+            className="text-[10px] font-black uppercase tracking-widest text-primary-foreground bg-primary hover:bg-primary/90 px-6 py-2.5 rounded-lg shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:shadow-none"
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+            ) : null}
+            {isEdit ? 'Update Intervention' : 'Create Intervention'}
+          </button>
+        </div>
       </div>
     </div>
   );

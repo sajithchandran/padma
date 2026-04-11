@@ -1,52 +1,73 @@
+import * as React from 'react';
+import { Slot } from '@radix-ui/react-slot';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
-import { forwardRef } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
-type Size = 'xs' | 'sm' | 'md' | 'lg';
+const buttonVariants = cva(
+  'inline-flex items-center justify-center font-bold tracking-tight transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:opacity-50 select-none active:scale-95 whitespace-nowrap',
+  {
+    variants: {
+      variant: {
+        default: 'bg-primary text-white shadow-sm hover:bg-primary/90 hover:shadow-primary/20',
+        primary: 'bg-primary text-white shadow-sm hover:bg-primary/90 hover:shadow-primary/20',
+        premium: 'bg-gradient-to-br from-primary to-indigo-600 text-white shadow-lg shadow-primary/20 hover:shadow-primary/40 hover:-translate-y-0.5',
+        destructive: 'bg-red-500 text-white shadow-sm hover:bg-red-600 hover:shadow-red-500/20',
+        outline: 'border border-border bg-background hover:bg-muted hover:text-foreground hover:border-border',
+        secondary: 'bg-muted text-foreground hover:bg-muted/80',
+        ghost: 'text-muted-foreground hover:bg-muted hover:text-foreground',
+        link: 'text-primary underline-offset-4 hover:underline',
+        glass: 'bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20',
+      },
+      size: {
+        default: 'h-10 px-4 py-2 text-sm rounded-xl',
+        sm: 'h-9 px-3 rounded-lg text-xs',
+        lg: 'h-11 px-8 rounded-2xl text-base',
+        xs: 'h-8 px-2.5 rounded-lg text-[11px]',
+        icon: 'h-10 w-10 rounded-xl',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+      size: 'default',
+    },
+  }
+);
 
-const variants: Record<Variant, string> = {
-  primary:   'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 shadow-sm focus-visible:ring-blue-500',
-  secondary: 'bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300 focus-visible:ring-slate-400',
-  ghost:     'text-slate-600 hover:bg-slate-100 active:bg-slate-200 focus-visible:ring-slate-400',
-  danger:    'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm focus-visible:ring-red-500',
-  outline:   'border border-slate-300 text-slate-700 hover:bg-slate-50 active:bg-slate-100 focus-visible:ring-slate-400',
-};
-
-const sizes: Record<Size, string> = {
-  xs: 'h-7 px-2.5 text-xs gap-1.5',
-  sm: 'h-8 px-3 text-sm gap-1.5',
-  md: 'h-9 px-4 text-sm gap-2',
-  lg: 'h-11 px-6 text-base gap-2',
-};
-
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: Variant;
-  size?: Size;
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
   loading?: boolean;
+  block?: boolean;
   icon?: React.ReactNode;
   iconRight?: React.ReactNode;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'primary', size = 'md', loading, icon, iconRight, children, className, disabled, ...props }, ref) => (
-    <button
-      ref={ref}
-      disabled={disabled || loading}
-      className={cn(
-        'inline-flex items-center justify-center font-medium rounded-lg transition-colors duration-150',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
-        variants[variant],
-        sizes[size],
-        className,
-      )}
-      {...props}
-    >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
-      {children}
-      {!loading && iconRight}
-    </button>
-  ),
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, loading, block, icon, iconRight, children, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }), block && 'w-full')}
+        ref={ref}
+        disabled={loading || props.disabled}
+        {...props}
+      >
+        {asChild ? (
+          children
+        ) : (
+          <>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {!loading && icon && <span className="mr-2">{icon}</span>}
+            {children}
+            {!loading && iconRight && <span className="ml-2">{iconRight}</span>}
+          </>
+        )}
+      </Comp>
+    );
+  }
 );
 Button.displayName = 'Button';
+
+export { Button, buttonVariants };

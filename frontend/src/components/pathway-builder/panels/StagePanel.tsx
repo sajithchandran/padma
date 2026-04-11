@@ -28,17 +28,17 @@ export function StagePanel({
   const config = STAGE_TYPE_CONFIG[stage.stageType];
 
   return (
-    <div className="w-[400px] h-full bg-white border-l border-slate-200 flex flex-col shrink-0 shadow-lg">
+    <div className="w-[400px] h-full bg-card border-l border-border flex flex-col shrink-0 shadow-lg">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-200">
+      <div className="px-4 py-3 border-b border-border bg-muted/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <span
-              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${config.bg} ${config.color}`}
+              className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${config.bg} ${config.color}`}
             >
               {config.label}
             </span>
-            <span className="font-semibold text-sm text-slate-800 truncate">
+            <span className="font-semibold text-sm text-foreground truncate">
               {stage.name}
             </span>
           </div>
@@ -46,7 +46,7 @@ export function StagePanel({
             {!isReadOnly && (
               <button
                 onClick={() => onDelete(stage.id)}
-                className="p-1.5 text-slate-400 hover:text-red-600 rounded transition-colors"
+                className="p-1.5 text-muted-foreground hover:text-red-500 rounded-lg transition-colors"
                 title="Delete stage"
               >
                 <Trash2 className="w-4 h-4" />
@@ -54,7 +54,7 @@ export function StagePanel({
             )}
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-600 rounded transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -63,12 +63,12 @@ export function StagePanel({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-border">
         <button
-          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-2.5 transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider py-3 transition-colors ${
             tab === 'properties'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-slate-500 hover:text-slate-700'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
           onClick={() => setTab('properties')}
         >
@@ -76,10 +76,10 @@ export function StagePanel({
           Properties
         </button>
         <button
-          className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-2.5 transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-wider py-3 transition-colors ${
             tab === 'interventions'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-slate-500 hover:text-slate-700'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
           onClick={() => setTab('interventions')}
         >
@@ -89,7 +89,7 @@ export function StagePanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         {tab === 'properties' ? (
           <StagePropertiesForm
             stage={stage}

@@ -49,12 +49,12 @@ export function StagePropertiesForm({
   };
 
   const inputCls =
-    'w-full text-sm border border-slate-200 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400';
-  const labelCls = 'block text-xs font-medium text-slate-500 mb-1';
+    'w-full text-sm border border-border bg-card rounded-lg px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:bg-muted disabled:text-muted-foreground/50 transition-all';
+  const labelCls = 'block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 ml-1';
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-6 p-5">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>Code</label>
           <input
@@ -93,7 +93,7 @@ export function StagePropertiesForm({
       <div>
         <label className={labelCls}>Description</label>
         <textarea
-          className={`${inputCls} resize-none`}
+          className={`${inputCls} resize-none leading-relaxed`}
           rows={3}
           value={form.description}
           onChange={(e) => handleChange('description', e.target.value)}
@@ -117,7 +117,7 @@ export function StagePropertiesForm({
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelCls}>Expected Duration (days)</label>
           <input
@@ -142,16 +142,16 @@ export function StagePropertiesForm({
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3 pt-2">
         <input
           type="checkbox"
           id="autoTransition"
           checked={form.autoTransition}
           onChange={(e) => handleChange('autoTransition', e.target.checked)}
           disabled={isReadOnly}
-          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          className="w-4 h-4 rounded border-border bg-muted text-primary focus:ring-primary/30 transition-all cursor-pointer"
         />
-        <label htmlFor="autoTransition" className="text-sm text-slate-600">
+        <label htmlFor="autoTransition" className="text-xs font-bold text-foreground cursor-pointer">
           Auto-transition when conditions are met
         </label>
       </div>

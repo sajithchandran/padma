@@ -15,13 +15,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-slate-700 mb-1.5">
+          <label htmlFor={inputId} className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 ml-1">
             {label}
           </label>
         )}
         <div className="relative">
           {icon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted-foreground/40">
               {icon}
             </div>
           )}
@@ -29,26 +29,26 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={cn(
-              'w-full rounded-lg border text-sm text-slate-900 placeholder:text-slate-400',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
-              'disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed',
-              'transition-colors duration-150',
-              error ? 'border-red-300 bg-red-50 focus:ring-red-400' : 'border-slate-300 bg-white',
-              icon ? 'pl-10' : 'pl-3',
-              iconRight ? 'pr-10' : 'pr-3',
-              'py-2 h-9',
+              'w-full rounded-xl border text-sm text-foreground bg-card placeholder:text-muted-foreground/40',
+              'focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary',
+              'disabled:bg-muted disabled:text-muted-foreground/50 disabled:cursor-not-allowed',
+              'transition-all duration-200',
+              error ? 'border-red-500/50 bg-red-500/5 focus:ring-red-500/10' : 'border-border',
+              icon ? 'pl-11' : 'pl-4',
+              iconRight ? 'pr-11' : 'pr-4',
+              'py-2.5 h-11',
               className,
             )}
             {...props}
           />
           {iconRight && (
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-muted-foreground/40">
               {iconRight}
             </div>
           )}
         </div>
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-        {hint && !error && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+        {error && <p className="mt-1.5 ml-1 text-[10px] font-bold text-red-500 uppercase tracking-wide">{error}</p>}
+        {hint && !error && <p className="mt-1.5 ml-1 text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide">{hint}</p>}
       </div>
     );
   },

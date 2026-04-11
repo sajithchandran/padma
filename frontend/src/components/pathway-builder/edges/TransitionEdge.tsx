@@ -22,9 +22,8 @@ function TransitionEdgeComponent({
   selected,
 }: EdgeProps<Edge<TransitionEdgeData, 'transition'>>) {
   const transition = data?.transition;
-  const triggerConfig = transition
-    ? TRIGGER_TYPE_CONFIG[transition.triggerType]
-    : TRIGGER_TYPE_CONFIG.manual;
+  const triggerType = (transition?.triggerType || 'manual').toLowerCase();
+  const triggerConfig = TRIGGER_TYPE_CONFIG[triggerType as keyof typeof TRIGGER_TYPE_CONFIG] || TRIGGER_TYPE_CONFIG.manual;
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -46,10 +45,11 @@ function TransitionEdgeComponent({
         className="react-flow__edge-path"
         d={edgePath}
         style={{
-          stroke: selected ? '#2563eb' : strokeColor,
+          stroke: selected ? 'var(--primary)' : strokeColor,
           strokeWidth: selected ? 2.5 : 1.8,
           fill: 'none',
-          strokeDasharray: isAutomatic ? '6 4' : undefined,
+          strokeDasharray: isAutomatic ? '8 6' : undefined,
+          transition: 'stroke 0.2s ease',
         }}
         markerEnd="url(#arrowhead)"
       />
@@ -58,11 +58,12 @@ function TransitionEdgeComponent({
         <path
           d={edgePath}
           style={{
-            stroke: strokeColor,
-            strokeWidth: 1.8,
+            stroke: selected ? 'var(--primary)' : strokeColor,
+            strokeWidth: selected ? 2.5 : 1.8,
             fill: 'none',
-            strokeDasharray: '6 4',
-            animation: 'dashdraw 0.5s linear infinite',
+            strokeDasharray: '8 6',
+            animation: 'dashdraw 0.8s linear infinite',
+            opacity: 0.8,
           }}
         />
       )}
@@ -74,11 +75,11 @@ function TransitionEdgeComponent({
             pointerEvents: 'all',
           }}
           className={`
-            text-[10px] font-medium px-2 py-0.5 rounded-full border shadow-sm
-            bg-white cursor-pointer
-            ${selected ? 'border-blue-400 ring-1 ring-blue-200' : 'border-slate-200'}
+            text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border shadow-sm
+            bg-card cursor-pointer transition-all
+            ${selected ? 'border-primary ring-4 ring-primary/20 scale-110' : 'border-border'}
             ${triggerConfig.color}
-            hover:shadow-md transition-shadow
+            hover:shadow-md hover:scale-105 active:scale-95
           `}
         >
           {transition?.ruleName || 'Transition'}

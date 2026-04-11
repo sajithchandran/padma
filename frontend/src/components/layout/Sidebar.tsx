@@ -1,9 +1,11 @@
 'use client';
 
+import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui.store';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Users, Route, CheckSquare, ClipboardList,
   MessageSquare, BarChart2, Shield, ChevronDown,
@@ -118,29 +120,40 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'h-screen flex flex-col bg-slate-900 text-white transition-all duration-300 ease-in-out flex-shrink-0',
-        sidebarCollapsed ? 'w-[72px]' : 'w-[240px]',
+        'h-screen flex flex-col bg-slate-950 text-slate-300 transition-all duration-300 ease-in-out flex-shrink-0 z-40 relative group',
+        sidebarCollapsed ? 'w-[80px]' : 'w-[260px]',
       )}
     >
-      {/* Logo */}
+      {/* Decorative Gradient Background */}
+      <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-950 to-black pointer-events-none opacity-50" />
+      
+      {/* Logo Section */}
       <div className={cn(
-        'flex items-center border-b border-slate-700/60 flex-shrink-0',
-        sidebarCollapsed ? 'h-16 justify-center px-0' : 'h-16 gap-3 px-5',
+        'relative flex items-center border-b border-white/5 flex-shrink-0 transition-all duration-300',
+        sidebarCollapsed ? 'h-20 justify-center px-0' : 'h-20 gap-3 px-6',
       )}>
-        <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-          <Heart className="h-4.5 w-4.5 text-white" strokeWidth={2.5} />
-        </div>
+        <motion.div 
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/20"
+        >
+          <Heart className="h-5 w-5 text-white" strokeWidth={2.5} />
+        </motion.div>
         {!sidebarCollapsed && (
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-white tracking-wide">Padma</p>
-            <p className="text-[10px] text-slate-400 leading-tight">Care Coordination</p>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="min-w-0"
+          >
+            <p className="text-lg font-bold text-white tracking-tight font-display bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Padma</p>
+            <p className="text-[10px] text-slate-500 leading-tight font-bold uppercase tracking-widest -mt-0.5">Clinical Suites</p>
+          </motion.div>
         )}
       </div>
 
-      {/* Scrollable nav */}
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 px-2 space-y-0.5">
-        {/* Main nav */}
+      {/* Navigation */}
+      <nav className="relative flex-1 overflow-y-auto py-6 px-3 space-y-1.5 custom-scrollbar">
+        {!sidebarCollapsed && <p className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-4">Main Menu</p>}
         {NAV_MAIN.map((item) => (
           <NavItemRow
             key={item.id}
@@ -153,40 +166,40 @@ export function Sidebar() {
           />
         ))}
 
-        {/* Divider */}
-        <div className="my-3 border-t border-slate-700/50 mx-2" />
-
-        {/* Admin nav */}
-        {NAV_ADMIN.map((item) => (
-          <NavItemRow
-            key={item.id}
-            item={item}
-            collapsed={sidebarCollapsed}
-            expanded={expandedGroups.includes(item.id)}
-            active={isGroupActive(item)}
-            onToggle={() => toggleGroup(item.id)}
-            pathname={pathname}
-          />
-        ))}
+        <div className="py-4">
+          {!sidebarCollapsed && <p className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-4">System</p>}
+          <div className="h-px bg-white/5 mx-4 mb-4" />
+          {NAV_ADMIN.map((item) => (
+            <NavItemRow
+              key={item.id}
+              item={item}
+              collapsed={sidebarCollapsed}
+              expanded={expandedGroups.includes(item.id)}
+              active={isGroupActive(item)}
+              onToggle={() => toggleGroup(item.id)}
+              pathname={pathname}
+            />
+          ))}
+        </div>
       </nav>
 
-      {/* Collapse toggle */}
-      <div className="flex-shrink-0 border-t border-slate-700/60 p-2">
+      {/* Footer / Toggle */}
+      <div className="relative flex-shrink-0 border-t border-white/5 p-4">
         <button
           onClick={toggleSidebar}
           className={cn(
-            'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-400',
-            'hover:bg-slate-700/60 hover:text-white transition-colors duration-150 text-sm',
+            'group/toggle w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200',
+            'hover:bg-white/5 text-slate-500 hover:text-white',
             sidebarCollapsed && 'justify-center',
           )}
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {sidebarCollapsed
-            ? <PanelLeftOpen className="h-5 w-5" />
+            ? <PanelLeftOpen className="h-5 w-5 transition-transform group-hover/toggle:scale-110" />
             : (
               <>
-                <PanelLeftClose className="h-5 w-5" />
-                <span className="text-xs">Collapse</span>
+                <PanelLeftClose className="h-5 w-5 transition-transform group-hover/toggle:scale-110" />
+                <span className="text-xs font-bold uppercase tracking-widest">Collapse</span>
               </>
             )
           }
@@ -211,18 +224,26 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
   const hasChildren = Boolean(item.children?.length);
 
   const rowBase = cn(
-    'relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 w-full cursor-pointer select-none',
-    collapsed ? 'justify-center' : '',
+    'relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 w-full cursor-pointer select-none group/row',
+    collapsed ? 'justify-center px-0 h-12 w-12 mx-auto mb-2' : '',
     active
-      ? 'bg-blue-600 text-white'
-      : 'text-slate-400 hover:bg-slate-700/60 hover:text-white',
+      ? 'bg-primary/10 text-primary shadow-sm'
+      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
+  );
+
+  const activeIndicator = active && (
+    <motion.div 
+      layoutId="active-nav-indicator"
+      className="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
+    />
   );
 
   if (!hasChildren && item.href) {
     return (
       <Link href={item.href} className={rowBase} title={collapsed ? item.label : undefined}>
-        <span className="flex-shrink-0">{item.icon}</span>
-        {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+        {activeIndicator}
+        <span className={cn('flex-shrink-0 transition-transform group-hover/row:scale-110', active ? 'text-primary' : '')}>{item.icon}</span>
+        {!collapsed && <span className="flex-1 truncate tracking-tight">{item.label}</span>}
         {!collapsed && item.badge != null && item.badge > 0 && (
           <BadgePill count={item.badge} active={active} />
         )}
@@ -231,23 +252,24 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
   }
 
   return (
-    <div>
+    <div className="space-y-1">
       <button
         onClick={onToggle}
         className={rowBase}
         title={collapsed ? item.label : undefined}
       >
-        <span className="flex-shrink-0">{item.icon}</span>
+        {activeIndicator}
+        <span className={cn('flex-shrink-0 transition-transform group-hover/row:scale-110', active ? 'text-primary' : '')}>{item.icon}</span>
         {!collapsed && (
           <>
-            <span className="flex-1 truncate text-left">{item.label}</span>
+            <span className="flex-1 truncate text-left tracking-tight">{item.label}</span>
             {item.badge != null && item.badge > 0 && (
               <BadgePill count={item.badge} active={active} />
             )}
             {hasChildren && (
               <ChevronDown
                 className={cn(
-                  'h-3.5 w-3.5 flex-shrink-0 transition-transform duration-200',
+                  'h-4 w-4 flex-shrink-0 transition-transform duration-300 text-slate-600 group-hover/row:text-slate-400',
                   expanded ? 'rotate-0' : '-rotate-90',
                 )}
               />
@@ -257,40 +279,38 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
       </button>
 
       {/* Children */}
-      {hasChildren && !collapsed && (
-        <div
-          className={cn(
-            'overflow-hidden transition-all duration-200',
-            expanded ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0',
-          )}
-        >
-          <div className="mt-0.5 ml-4 pl-4 border-l border-slate-700/50 space-y-0.5 py-0.5">
-            {item.children!.map((child) => {
-              const childPath = child.href.split('?')[0];
-              const childActive = pathname === childPath || (childPath !== '/' && pathname.startsWith(childPath));
-              return (
-                <Link
-                  key={child.href}
-                  href={child.href}
-                  className={cn(
-                    'flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors duration-100',
-                    childActive
-                      ? 'text-white bg-slate-700'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-700/40',
-                  )}
-                >
-                  <span className="truncate">{child.label}</span>
-                  {child.badge != null && child.badge > 0 && (
-                    <span className="ml-2 flex-shrink-0 h-4 min-w-4 px-1 rounded-full bg-blue-500 text-[10px] text-white font-bold flex items-center justify-center">
-                      {child.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {hasChildren && !collapsed && expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="ml-9 border-l border-white/5 space-y-1 py-1">
+              {item.children!.map((child) => {
+                const childPath = child.href.split('?')[0];
+                const childActive = pathname === childPath || (childPath !== '/' && pathname.startsWith(childPath));
+                return (
+                  <Link
+                    key={child.href}
+                    href={child.href}
+                    className={cn(
+                      'flex items-center justify-between px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200',
+                      childActive
+                        ? 'text-white'
+                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5',
+                    )}
+                  >
+                    <span className="truncate">{child.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -298,8 +318,8 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
 function BadgePill({ count, active }: { count: number; active: boolean }) {
   return (
     <span className={cn(
-      'h-4 min-w-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0',
-      active ? 'bg-white text-blue-600' : 'bg-blue-500 text-white',
+      'h-4 min-w-4 px-1 rounded bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center flex-shrink-0',
+      active ? 'bg-primary text-white' : '',
     )}>
       {count}
     </span>

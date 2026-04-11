@@ -50,7 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   // (this is synchronous and resolves in <1 frame — just prevents a flash).
   if (!isHydrated) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="h-8 w-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
       </div>
     );
@@ -60,7 +60,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header />
