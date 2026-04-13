@@ -8,6 +8,8 @@ Padma is a new standalone **clinical pathway and care coordination platform** th
 
 **Hierarchy:** `Clinical Pathway → Stages → Interventions → Tasks`
 
+**Current implementation note (April 2026):** The core pathway engine, visual pathway builder, named care-team master, care-task template library, patient enrollment/start/transition workflow, task assignment/completion, internal care-team chat, communication templates, async outbound communication queue, privacy consent UI/APIs, and single-page patient pathway monitor are implemented in the Padma repo. Remaining gaps are mainly around formal program/subscription models, device/clinical observation ingestion, automated risk scoring, real-time SSE, and deeper external-system integration.
+
 **Care Settings:** The platform supports patients across **outpatient**, **inpatient**, and **home care** settings — and patients who transition between them. Care setting is a first-class dimension on pathways, stages, tasks, and communication.
 
 ---
@@ -48,6 +50,7 @@ PatientPathwayEnrollment (patient enrolled in a pathway)
  ├── currentStageId (which stage the patient is currently in)
  ├── PatientStageHistory[] (audit trail of stage transitions)
  ├── CareTask[] (generated from current stage's interventions)
+ ├── CareChatMessage[] (internal care-team thread + system updates)
  └── adherence metrics (denormalized)
 ```
 
@@ -69,9 +72,10 @@ The top-level evidence-based protocol (e.g., "ADA Type 2 Diabetes Management Pat
 - defaultDurationDays  (expected total duration, e.g., 365)
 - externalSourceSystem ("athma" if synced from Product Configurator)
 - externalSourceId
+- careTeamId       (optional FK to named CareTeam master; default care team for enrollments)
 - status           (draft | active | deprecated | archived)
 - createdBy, createdAt, updatedBy, updatedAt
-- Indexes: [tenantId, code, version] unique; [tenantId, category, status]
+- Indexes: [tenantId, code, version] unique; [tenantId, category, status]; [tenantId, careTeamId]
 ```
 
 ### PathwayStage
@@ -126,6 +130,22 @@ Interventions belonging to a specific stage (what tasks to generate when patient
 - metadata          (JSONB — type-specific: test codes, drug info, specialty, dosage)
 - sortOrder
 - Indexes: [tenantId, stageId, sortOrder]
+```
+
+### CareTaskTemplate (Tenant-Level Reusable Library)
+Reusable task/intervention templates that admins can select from in the pathway builder. When a template is selected, Padma copies it into `StageInterventionTemplate` so each stage keeps its own editable snapshot.
+```
+- id, tenantId
+- interventionType, name, description
+- careSetting, deliveryMode
+- frequencyType, frequencyValue
+- startDayOffset, endDayOffset
+- defaultOwnerRole
+- autoCompleteSource, autoCompleteEventType
+- priority, isCritical, isActive
+- reminderConfig, metadata
+- createdBy, createdAt, updatedBy, updatedAt
+- Indexes: [tenantId, isActive, name]; [tenantId, interventionType, careSetting]
 ```
 
 ### StageTransitionRule (Decision Nodes)
@@ -191,18 +211,15 @@ When a patient is enrolled in a clinical pathway.
 - Indexes: [tenantId, patientId, status]; [tenantId, currentStageId, status]; [tenantId, primaryCoordinatorId, status]
 ```
 
-### Care Team Master (Tenant-Level Directory)
-Tenant-level care team membership should be exposed as a reusable master dataset, separate from any single enrollment instance.
+### CareTeam + CareTeamMember (Named Care Team Master)
+Tenant-level named care teams are reusable groups that can be mapped to a pathway and copied into the enrollment snapshot. This is separate from a single patient's care-team assignment.
 ```
-- Derived from active UserTenantRole memberships for care-delivery roles
-  (supervisor | care_coordinator | physician | nurse)
-- Source of truth for enrollment assignment UIs and care-team pickers
-- Exposed through APIs such as:
-  - GET /care-team/members
-  - GET /care-team/members/:userId
-  - GET /care-team/roles
-- Enrollment.careTeam remains the patient-level assignment snapshot
-  while Care Team Master acts as the reusable tenant directory
+- CareTeam: id, tenantId, name, description, isActive, createdBy, updatedBy
+- CareTeamMember: careTeamId, userId, roleId, facilityId, addedBy, addedAt
+- ClinicalPathway.careTeamId maps a default named team to a pathway
+- PatientPathwayEnrollment.careTeam remains the runtime snapshot copied at enrollment time
+- Primary coordinator can be derived from the mapped care team's care_coordinator member
+- APIs support named team CRUD, member add/remove, member listing, and pathway mapping
 ```
 
 ### PatientStageHistory (Stage Transition Audit Trail)
@@ -251,6 +268,19 @@ Individual actionable tasks generated from stage interventions.
 - payload           (JSONB)
 - performedBy
 - createdAt
+```
+
+### CareChatMessage (Internal Care-Team Chat)
+Internal patient/enrollment care-team thread. User messages support care-team discussion; system messages are posted automatically for pathway and task lifecycle events.
+```
+- id, tenantId
+- patientId, enrollmentId, pathwayId, stageId, taskId
+- messageType       (user | system)
+- eventType         (enrollment_created | pathway_started | stage_transitioned | tasks_generated | task_completed | task_assigned | etc.)
+- body
+- metadata          (JSONB — structured event context)
+- createdBy, createdAt, editedAt, deletedAt
+- Indexes: [tenantId, patientId, createdAt DESC]; [tenantId, enrollmentId, createdAt DESC]; [tenantId, taskId, createdAt DESC]
 ```
 
 ### EscalationRule
@@ -306,14 +336,16 @@ Same structure as Zeal PRM: `CommunicationTemplate`, `PatientPreference`, `Patie
 2. ENROLLMENT: Coordinator enrolls patient
    → Create PatientPathwayEnrollment
    → Set currentStage = entry stage (e.g., "Assessment")
-   → Execute stage entry actions (generate tasks, send welcome message)
-   → Task Generator creates tasks for current stage interventions
+   → Status starts as pending; coordinator explicitly starts the pathway
+   → On start: log PatientStageHistory, execute entry actions, generate stage tasks
+   → Post system update into the internal care-team chat
 
 3. IN-STAGE: Patient progresses through interventions
    → Tasks are completed (manual, auto-completed via Athma webhooks, or self-reported)
    → Reminders sent for pending/overdue tasks
    → Escalation rules fire for critical overdue tasks
    → Clinical data updated (lab results feed into clinicalData JSONB)
+   → Task creation, assignment, status changes, completion, escalation, and cancellation are logged as CareTaskEvent and posted to care chat
 
 4. TRANSITION EVALUATION: Periodic + event-triggered
    → TransitionEvaluator checks all active transition rules for current stage
@@ -325,6 +357,7 @@ Same structure as Zeal PRM: `CommunicationTemplate`, `PatientPreference`, `Patie
      - Log to PatientStageHistory
      - Update currentStageId to toStageId
      - Execute new stage entryActions (generate new tasks, notify team)
+     - Post stage-transition system message to care chat
 
 5. TERMINAL STAGE: Patient reaches graduation/dropout
    → Execute final stage actions
@@ -496,7 +529,11 @@ padma/backend/services/care-coordination/src/
 ├── tasks/                 # Task generation + management
 │   ├── tasks.controller.ts
 │   ├── tasks.service.ts
+│   ├── care-task-templates.controller.ts
+│   ├── care-task-templates.service.ts
 │   └── task-generator.service.ts    # Generates tasks from stage interventions
+├── care-team/             # Named care team master + members + pathway mapping
+├── care-chat/             # Internal patient/enrollment care-team chat + system messages
 ├── reminders/             # FR-3: Automated follow-up
 │   ├── reminder-scheduler.service.ts
 │   └── reminder-dispatcher.service.ts
@@ -506,7 +543,7 @@ padma/backend/services/care-coordination/src/
 ├── dashboard/             # FR-6: Coordinator dashboard APIs
 ├── escalation/            # FR-10: Escalation rules engine
 ├── segments/              # FR-11: Patient segmentation
-├── communication/         # FR-9: Multi-channel comms
+├── communication/         # FR-9: Templates, consent-aware send requests, async delivery
 │   └── channels/
 │       ├── athma-trigger.adapter.ts    # WhatsApp/SMS/Email via Athma
 │       ├── genesys-call.adapter.ts     # Call scheduling
@@ -531,16 +568,19 @@ padma/frontend/src/
 ├── app/
 │   ├── (dashboard)/
 │   │   ├── page.tsx                    # Coordinator dashboard home
-│   │   ├── patients/[patientId]/       # Patient 360 view (pathway stages, tasks, timeline)
+│   │   ├── patients/                   # Patient registry
+│   │   │   └── [id]/                  # Single patient page with pathway selector, monitor, tasks, chat, timeline
 │   │   ├── pathways/                   # Clinical pathway management
 │   │   │   ├── page.tsx               # List all pathways
-│   │   │   ├── [pathwayId]/           # Pathway detail + visual stage editor
-│   │   │   └── builder/              # Visual pathway builder (stages + transitions)
-│   │   ├── enrollments/               # Active patient enrollments
+│   │   │   ├── new/builder            # Create a new pathway through the builder
+│   │   │   └── [id]/builder           # Visual pathway builder (stages + transitions)
+│   │   ├── enrollment/                # Enrollment worklist + enrollment creation
 │   │   ├── tasks/                     # Coordinator task queue
-│   │   ├── transitions/               # Pending transition proposals (for coordinator review)
-│   │   ├── escalations/              # Escalation management
-│   │   └── settings/                 # Templates, rules, segments
+│   │   ├── communications/            # Patient communications inbox/outbound
+│   │   ├── communication-templates/   # Template master
+│   │   ├── privacy-consent/           # Patient consent recording
+│   │   ├── care-team/                 # Named care-team master
+│   │   └── settings/                  # Tenant settings, including pathway code format
 ├── modules/
 │   ├── dashboard/      (widgets, charts, adherence overview)
 │   ├── pathways/       (pathway builder, stage editor, transition rule builder)
@@ -556,7 +596,9 @@ padma/frontend/src/
 └── store/              (Zustand)
 ```
 
-Key UI: **Pathway Builder** — visual editor where admins define stages as nodes in a graph, draw transitions between them, and configure conditions for each transition. Think of it as a simplified BPMN-style editor.
+Key UI: **Pathway Builder** — visual editor where admins define stages as nodes in a graph, draw transitions between them, configure conditions for each transition, map a default care team, and add interventions either manually or from the care-task template library. Pathway codes are generated automatically using the tenant's configured code format.
+
+Key UI: **Patient Page** — `/patients/[id]` is the single patient workspace. It includes a reusable patient header, pathway selector, selected pathway monitor, active tasks, stage transition controls, care-team chat, and stage lifecycle timeline. If a patient has multiple pathways, the user selects the pathway on this page instead of navigating to a separate detail screen.
 
 ---
 
@@ -568,8 +610,18 @@ Key UI: **Pathway Builder** — visual editor where admins define stages as node
 2. Daily cron extends the window for patients still in the same stage
 3. When patient transitions to a new stage → cancel pending tasks from old stage (exit action) → generate tasks for new stage (entry action)
 4. Recurring interventions within a stage continue generating until stage transition occurs
+5. Generated/cancelled tasks create system care-chat updates for team visibility
 
 This means tasks are always scoped to the current stage. No tasks are generated for future stages (those are triggered by transitions).
+
+### Care Task Template Library
+
+Admins can create tenant-level `CareTaskTemplate` records and reuse them in the visual pathway builder. The builder supports:
+- **Create New** intervention directly on a stage
+- **Select From Task Template Library** and copy into the stage as a `StageInterventionTemplate`
+- Local stage-level edits after copy, without mutating the reusable library template
+
+This keeps reusable operational patterns centralized while preserving stage-owned snapshots for auditability and pathway versioning.
 
 ---
 
@@ -582,9 +634,31 @@ This means tasks are always scoped to the current stage. No tasks are generated 
 Padma → check patient preference (DND, quiet hours)
      → render template (Mustache)
      → create PatientMessage record
+     → status = ready_to_send
+     → background scheduler claims ready messages
      → dispatch: WhatsApp/SMS/Email → Athma | Call → Genesys
-     → log to Salesforce
+     → update sent/delivery/failure details
+     → log to Salesforce when configured
 ```
+
+Message creation is intentionally asynchronous from delivery: after validation, consent, preference checks, and template rendering succeed, Padma persists the message first. Third-party delivery failure does not prevent message creation.
+
+### Internal Care Chat Flow
+
+Care chat is separate from patient outbound communication. It is an internal care-team thread scoped to patient/enrollment.
+
+```
+Care-team user posts note
+  → POST /api/v1/enrollments/:enrollmentId/care-chat
+  → CareChatMessage(messageType=user)
+
+Pathway/task lifecycle event occurs
+  → service posts CareChatMessage(messageType=system)
+  → team sees enrollment_created, pathway_started, stage_transitioned,
+    tasks_generated, task_completed, task_assigned, task_cancelled, etc.
+```
+
+Care chat is currently query/refresh based. SSE can later push live chat/system updates to the patient page.
 
 ### Auto-Completion + Transition Trigger Flow (FR-5 + Pathway Engine)
 ```
@@ -648,39 +722,75 @@ Configurable per intervention template via `reminderConfig` JSON.
 - `POST /api/v1/pathways/:id/publish` — activate pathway
 - `POST /api/v1/pathways/:id/clone` — version a pathway
 - `POST /api/v1/pathways/sync-athma` — pull from Athma Product Configurator
+- Pathway code is generated automatically on create when omitted, using tenant setting `featureFlags.pathwayCodeFormat`
 
 ### Pathway Stages & Transitions
 - `GET/POST /api/v1/pathways/:id/stages` — manage stages
 - `GET/POST /api/v1/pathways/:id/transitions` — manage transition rules
 - `GET/POST /api/v1/stages/:id/interventions` — manage stage interventions
 
+### Care Teams
+- `GET/POST /api/v1/care-team/teams` — named care-team master
+- `GET/PUT/DELETE /api/v1/care-team/teams/:id` — manage a named care team
+- `POST/DELETE /api/v1/care-team/teams/:id/members` — add/remove members
+- `GET /api/v1/care-team/members` — tenant care-team member directory
+
+### Care Task Templates
+- `GET/POST /api/v1/care-task-templates` — reusable tenant task template library
+- `GET/PUT/DELETE /api/v1/care-task-templates/:id` — manage a reusable task template
+
 ### Patient Enrollment
+- `POST /api/v1/enrollments` — create enrollment; patientId may be supplied or generated
 - `POST /api/v1/patients/:patientId/enroll` — enroll in pathway
 - `GET /api/v1/patients/:patientId/enrollments` — list enrollments
 - `GET /api/v1/enrollments/:id` — enrollment detail with stage history + tasks
+- `POST /api/v1/enrollments/:id/start` — start pending enrollment and enter first stage
+- `GET /api/v1/enrollments/:id/stage-history` — transition audit trail
+- `GET /api/v1/enrollments/:id/transition-readiness` — whether current-stage tasks allow transition
 - `POST /api/v1/enrollments/:id/transition` — manual stage transition
-- `POST /api/v1/enrollments/:id/evaluate-transitions` — trigger transition evaluation
-- `PUT /api/v1/enrollments/:id/pause|resume|cancel`
+- `GET /api/v1/enrollments/:id/proposed-transitions` — evaluate transition rules
+- `POST /api/v1/enrollments/:id/pause|resume|cancel|complete`
+
+### Patients
+- `GET /api/v1/patients` — enrolled patient registry aggregated from enrollment snapshots
+- `GET /api/v1/patients/search` — typeahead patient search by name/MRN
 
 ### Tasks
 - `GET /api/v1/tasks` — coordinator task queue
-- `GET /api/v1/patients/:patientId/tasks` — Patient 360 tasks
+- `GET /api/v1/patients/:patientId/tasks` — patient-level task history across enrollments
 - `GET /api/v1/enrollments/:id/tasks` — tasks for an enrollment
+- `GET /api/v1/tasks/:id` — task detail with task events
+- `PUT /api/v1/tasks/:id/status` — status change from task drawer/detail
 - `POST /api/v1/tasks/:id/complete|skip|escalate|reassign`
+
+### Care Chat
+- `GET /api/v1/enrollments/:enrollmentId/care-chat` — enrollment-scoped care-team thread
+- `POST /api/v1/enrollments/:enrollmentId/care-chat` — post internal care-team note
+- `GET /api/v1/patients/:patientId/care-chat` — patient-level internal care-chat history
 
 ### Dashboard
 - `GET /api/v1/dashboard/summary|overdue-tasks|upcoming-tasks|adherence-overview|my-patients`
 - `GET /api/v1/dashboard/pathway-distribution` — patients per stage per pathway
 - `GET /api/v1/dashboard/pending-transitions` — transitions awaiting coordinator approval
 
+### Communication & Privacy
+- `GET/POST /api/v1/communication/templates` — template master
+- `GET /api/v1/communication/templates/:id` — template detail
+- `POST /api/v1/communication/templates/:id/approve` — approve template
+- `POST /api/v1/communication/send` — validate/render/persist ready-to-send patient message
+- `GET /api/v1/communication/messages` — tenant-wide communication history
+- `GET /api/v1/patients/:patientId/messages` — patient message history
+- `GET/POST/DELETE /api/v1/privacy/consents/:patientId` — patient consent records
+- `GET /api/v1/privacy/dsar/:patientId` and `POST /api/v1/privacy/erasure/:patientId` — privacy operations
+
 ### Webhooks (inbound)
 - `POST /api/v1/webhooks/athma`
 - `POST /api/v1/webhooks/salesforce`
 - `POST /api/v1/webhooks/genesys`
 
-### Real-time
-- `GET /api/v1/sse/dashboard` — SSE stream
-- `GET /api/v1/sse/patient/:patientId` — patient-specific SSE
+### Real-time (Planned)
+- `GET /api/v1/sse/dashboard` — planned dashboard SSE stream
+- `GET /api/v1/sse/patient/:patientId` — planned patient-specific SSE stream
 
 ---
 
@@ -914,21 +1024,26 @@ padma/backend/services/care-coordination/src/
 
 ## 12. Phased Implementation Roadmap
 
+### Current Implementation Snapshot (April 2026)
+- **Done:** Auth/RBAC foundation, tenant settings, pathway CRUD, visual pathway builder, stage/intervention/transition APIs, auto-generated pathway code, named care teams, care-team mapping to pathways, care-task template library, patient enrollment/start/transition, task queues, task status/assignment/completion, patient registry, single patient pathway monitor, care-team chat, communication templates, async communication delivery scheduler, privacy consent UI/APIs, dashboard summary APIs.
+- **Partially done:** Transition evaluation and stage transition readiness exist, but automated event/webhook-driven clinical-data updates and coordinator transition proposals need hardening.
+- **Not done / future:** Formal care-program/subscription models, tier entitlements, patient monitoring data tables, device/CGM ingestion, automated risk score history, full SSE real-time fan-out, Medha KPI export, Genesys call workflows, Salesforce logging depth, production-grade RLS/encryption policies.
+
 ### Phase 1: Foundation + Pathway Engine (Sprints 1-4, ~8 weeks)
-- **Sprint 1:** Project bootstrap — NestJS setup, Prisma schemas (both DBs), multi-tenancy, auth, Docker
-- **Sprint 2:** Clinical Pathway CRUD — pathway, stages, intervention templates, transition rules. Frontend: pathway builder UI
-- **Sprint 3:** Enrollment + Task Generation — patient enrollment, stage entry actions, task generator (rolling window), task CRUD
-- **Sprint 4:** Pathway Engine — transition evaluator, JSON DSL condition evaluator, clinical data service, stage transition lifecycle, coordinator transition proposals
+- **Sprint 1:** Project bootstrap — NestJS setup, Prisma schemas, multi-tenancy, auth, Docker — **implemented**
+- **Sprint 2:** Clinical Pathway CRUD — pathway, stages, intervention templates, transition rules, visual builder — **implemented**
+- **Sprint 3:** Enrollment + Task Generation — patient enrollment, stage entry actions, task generator, task CRUD — **implemented**
+- **Sprint 4:** Pathway Engine — transition evaluator, stage transition lifecycle, transition readiness — **partially implemented**
 
 ### Phase 2: Integrations + Automation (Sprints 5-7, ~6 weeks)
-- **Sprint 5:** Athma Integration — webhook controller, auto-completion engine, clinical data updates from lab results, transition re-evaluation on clinical data change, template sync from Product Configurator
-- **Sprint 6:** Reminders + Multi-Channel Comms — reminder scheduler, Athma trigger adapter, Salesforce logging, patient preferences
-- **Sprint 7:** Real-Time + Coordinator Dashboard — SSE infrastructure, dashboard APIs + frontend (assigned patients, active pathways, overdue tasks, adherence, pending transitions, pathway stage distribution)
+- **Sprint 5:** Athma Integration — webhook controller, auto-completion engine, clinical data updates from lab results, transition re-evaluation on clinical data change, template sync from Product Configurator — **partially implemented**
+- **Sprint 6:** Reminders + Multi-Channel Comms — reminder scheduler, Athma trigger adapter, patient preferences/consent, async delivery — **partially implemented**
+- **Sprint 7:** Real-Time + Coordinator Dashboard — dashboard APIs/frontends implemented; SSE still pending
 
 ### Phase 3: Intelligence (Sprints 8-10, ~6 weeks)
-- **Sprint 8:** Escalation Engine — rules CRUD, scanner, escalation chain, Genesys call integration
-- **Sprint 9:** Patient Segmentation + Routing — segment DSL, evaluation, bulk actions. Patient-facing view (read-only). Self-serve task completion
-- **Sprint 10:** Chat Support (Med Echat proxy) + Adherence metrics push to Medha
+- **Sprint 8:** Escalation Engine — rules CRUD/scanner exists at foundation level; Genesys call integration pending
+- **Sprint 9:** Patient Segmentation + Routing — pending
+- **Sprint 10:** Internal care-team chat implemented; Med Echat proxy and Medha export pending
 
 ### Phase 4: Polish (Sprints 11-12, ~4 weeks)
 - **Sprint 11:** Medication refill reminders, edge cases (plan pause/resume, timezone, concurrent enrollments), pathway versioning (handle patients on old versions)
@@ -943,17 +1058,17 @@ padma/backend/services/care-coordination/src/
 | FR | Module | Sprint | Notes |
 |----|--------|--------|-------|
 | FR-1 | pathways/ + enrollment/ | 2-3 | Pathway templates with stage-scoped interventions; Athma Product Configurator sync |
-| FR-2 | tasks/ + pathway-engine/ + patient 360 | 3-4, 9 | Task generation from stages; FR-7, FR-8, FR-14 are subsets |
-| FR-3 | reminders/ | 6 | Adaptive reminder strategy |
-| FR-4 | auto-completion/ + realtime/ | 7 | SSE via Redis pub/sub |
+| FR-2 | tasks/ + pathway-engine/ + patient monitor | 3-4, 9 | Task generation from stages; FR-7, FR-8, FR-14 are subsets |
+| FR-3 | reminders/ + communication/ | 6 | Reminder scheduler and async communication delivery |
+| FR-4 | auto-completion/ + realtime/ | 7 | Auto-completion foundation; SSE pending |
 | FR-5 | auto-completion/ + integrations/athma/ | 5 | Webhook → auto-complete → clinical data update → transition evaluation |
 | FR-6 | dashboard/ | 7 | Coordinator dashboard with pathway stage distribution |
 | FR-7 | tasks/ (patient-facing API) | 9 | Subset of FR-2 |
 | FR-8 | tasks/ (self-serve completion) | 9 | Subset of FR-2 |
-| FR-9 | communication/ | 6 | Athma sends, Salesforce logs |
+| FR-9 | communication/ | 6 | Consent-aware message persistence + background delivery; Athma sends, Salesforce logging pending/depth TBD |
 | FR-10 | escalation/ | 8 | JSON DSL rules + chain execution |
 | FR-11 | segments/ | 9 | JSON DSL filters, Athma+Medha data |
-| FR-12 | communication/ (chat proxy) | 10 | Leverage Athma Med Echat |
+| FR-12 | care-chat/ + communication/ | 10 | Internal care-team chat implemented; Athma Med Echat proxy pending |
 | FR-13 | dashboard/ + integrations/medha/ | 10 | Push metrics to Medha |
 | FR-14 | pathways/ (configuration) | 2, 9 | Subset of FR-2 |
 | FR-15 | integrations/ | 5-10 | Progressive integration across sprints |
@@ -970,9 +1085,13 @@ padma/backend/services/care-coordination/src/
 | Task generation scope | Per-stage, rolling 30-day window | Tasks tied to current stage; new stage = new tasks |
 | Transition evaluation | JSON DSL condition evaluator | Same pattern as Zeal PRM rules; extensible, auditable |
 | Message sending | Delegated to Athma | Avoid duplicate Twilio/SendGrid contracts |
+| Message persistence | Persist first, deliver async | Third-party failures must not block validated message creation |
+| Internal care chat | Separate `care-chat/` module, not patient outbound communication | Care team needs clinical collaboration and system updates independent from patient messaging |
+| Care task templates | Tenant-level reusable library copied into stage-owned interventions | Reuse common tasks without coupling old pathways to future template edits |
+| Patient monitor UX | Single patient page with selected pathway query param | Avoid confusing split between patient detail and pathway detail pages |
 | Job queue | Postgres-backed (SKIP LOCKED) | Proven Zeal PRM pattern; transactional |
 | Real-time | SSE (not WebSocket) | Unidirectional; simpler; native NestJS |
-| Database | Two DBs (core + engagement) | Separation of concerns |
+| Database | Unified Prisma schema currently; engagement models are separated by domain tables | Simpler local development; physical DB split can be revisited before production if needed |
 
 ---
 

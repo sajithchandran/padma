@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Building2, Globe, Clock, Shield, Zap, Save, 
   ToggleLeft, ToggleRight, CheckCircle2, ChevronRight,
-  User, Activity, Settings, Bell, Lock, Database
+  User, Activity, Settings, Bell, Lock, Database, AlertCircle
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardSubtitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';

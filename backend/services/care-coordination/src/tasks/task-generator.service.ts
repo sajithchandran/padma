@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { CareChatService } from '../care-chat/care-chat.service';
 
 interface RecurrenceParams {
   frequencyType: 'once' | 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'custom_days';
@@ -13,7 +14,10 @@ interface RecurrenceParams {
 export class TaskGeneratorService {
   private readonly logger = new Logger(TaskGeneratorService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly careChat: CareChatService,
+  ) {}
 
   /**
    * Generates CareTask records for all matching interventions in a stage
@@ -147,6 +151,13 @@ export class TaskGeneratorService {
     if (tasksToCreate.length > 0) {
       await this.prisma.careTask.createMany({ data: tasksToCreate as any });
       await this.recalculateEnrollmentTaskCounts(tenantId, enrollmentId);
+      await this.safePostTaskGenerationMessage(
+        tenantId,
+        enrollmentId,
+        stageId,
+        enrollment.patientId,
+        tasksToCreate.length,
+      );
       this.logger.log(
         `Generated ${tasksToCreate.length} tasks for enrollment ${enrollmentId}, stage ${stageId}`,
       );
@@ -197,6 +208,12 @@ export class TaskGeneratorService {
     ]);
 
     await this.recalculateEnrollmentTaskCounts(tenantId, enrollmentId);
+    await this.safePostTaskCancellationMessage(
+      tenantId,
+      enrollmentId,
+      stageId,
+      tasksToCancel.length,
+    );
 
     this.logger.log(
       `Cancelled ${tasksToCancel.length} pending/upcoming tasks for enrollment ${enrollmentId}, stage ${stageId}`,
@@ -374,5 +391,77 @@ export class TaskGeneratorService {
           : undefined,
       },
     });
+  }
+
+  private async safePostTaskGenerationMessage(
+    tenantId: string,
+    enrollmentId: string,
+    stageId: string,
+    patientId: string,
+    taskCount: number,
+  ) {
+    try {
+      const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({
+        where: { id: enrollmentId, tenantId },
+        select: { pathwayId: true },
+      });
+      const stage = await this.prisma.pathwayStage.findFirst({
+        where: { id: stageId, tenantId },
+        select: { name: true, code: true },
+      });
+
+      await this.careChat.postSystemMessage({
+        tenantId,
+        patientId,
+        enrollmentId,
+        pathwayId: enrollment?.pathwayId,
+        stageId,
+        eventType: 'tasks_generated',
+        body: `${taskCount} care task${taskCount === 1 ? '' : 's'} generated for ${stage?.name ?? 'current stage'}.`,
+        metadata: { taskCount, stageName: stage?.name, stageCode: stage?.code },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to post care chat task generation event for enrollment ${enrollmentId}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
+  }
+
+  private async safePostTaskCancellationMessage(
+    tenantId: string,
+    enrollmentId: string,
+    stageId: string,
+    taskCount: number,
+  ) {
+    try {
+      const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({
+        where: { id: enrollmentId, tenantId },
+        select: { patientId: true, pathwayId: true },
+      });
+
+      if (!enrollment) return;
+
+      const stage = await this.prisma.pathwayStage.findFirst({
+        where: { id: stageId, tenantId },
+        select: { name: true, code: true },
+      });
+
+      await this.careChat.postSystemMessage({
+        tenantId,
+        patientId: enrollment.patientId,
+        enrollmentId,
+        pathwayId: enrollment.pathwayId,
+        stageId,
+        eventType: 'stage_tasks_cancelled',
+        body: `${taskCount} pending task${taskCount === 1 ? '' : 's'} cancelled for ${stage?.name ?? 'previous stage'}.`,
+        metadata: { taskCount, stageName: stage?.name, stageCode: stage?.code },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to post care chat task cancellation event for enrollment ${enrollmentId}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
   }
 }

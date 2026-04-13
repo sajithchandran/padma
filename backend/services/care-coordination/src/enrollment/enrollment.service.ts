@@ -14,6 +14,7 @@ import { StageManagerService } from './stage-manager.service';
 import { TransitionEvaluatorService } from '../pathway-engine/transition-evaluator.service';
 import { Prisma } from '.prisma/client';
 import { TaskGeneratorService } from '../tasks/task-generator.service';
+import { CareChatService } from '../care-chat/care-chat.service';
 
 @Injectable()
 export class EnrollmentService {
@@ -24,6 +25,7 @@ export class EnrollmentService {
     private readonly stageManager: StageManagerService,
     private readonly transitionEvaluator: TransitionEvaluatorService,
     private readonly taskGenerator: TaskGeneratorService,
+    private readonly careChat: CareChatService,
   ) {}
 
   async enroll(tenantId: string, userId: string, dto: CreateEnrollmentDto) {
@@ -143,6 +145,24 @@ export class EnrollmentService {
       return created;
     });
 
+    await this.safePostSystemMessage({
+      tenantId,
+      patientId: enrollment.patientId,
+      enrollmentId: enrollment.id,
+      pathwayId: enrollment.pathwayId,
+      stageId: enrollment.currentStageId,
+      eventType: 'enrollment_created',
+      body: `Patient enrolled in ${enrollment.pathway.name}. Pathway is pending start.`,
+      metadata: {
+        pathwayName: enrollment.pathway.name,
+        pathwayCode: enrollment.pathway.code,
+        stageName: enrollment.currentStage.name,
+        patientDisplayName: enrollment.patientDisplayName,
+        patientMrn: enrollment.patientMrn,
+      },
+      createdBy: userId,
+    });
+
     return enrollment;
   }
 
@@ -227,6 +247,23 @@ export class EnrollmentService {
           err.stack,
         ),
       );
+
+    await this.safePostSystemMessage({
+      tenantId,
+      patientId: updated.patientId,
+      enrollmentId: updated.id,
+      pathwayId: updated.pathwayId,
+      stageId: entryStage.id,
+      eventType: 'pathway_started',
+      body: `Pathway started. Patient entered ${entryStage.name}.`,
+      metadata: {
+        pathwayName: updated.pathway.name,
+        pathwayCode: updated.pathway.code,
+        stageName: entryStage.name,
+        stageCode: entryStage.code,
+      },
+      createdBy: userId,
+    });
 
     await this.taskGenerator.generateTasksForStage(tenantId, enrollment.id, entryStage.id);
 
@@ -355,7 +392,7 @@ export class EnrollmentService {
   async pause(tenantId: string, id: string, userId: string) {
     const enrollment = await this.findActiveEnrollment(tenantId, id);
 
-    return this.prisma.patientPathwayEnrollment.update({
+    const updated = await this.prisma.patientPathwayEnrollment.update({
       where: { id: enrollment.id },
       data: {
         status: 'paused',
@@ -363,6 +400,19 @@ export class EnrollmentService {
         updatedBy: userId,
       },
     });
+
+    await this.safePostSystemMessage({
+      tenantId,
+      patientId: updated.patientId,
+      enrollmentId: updated.id,
+      pathwayId: updated.pathwayId,
+      stageId: updated.currentStageId,
+      eventType: 'enrollment_paused',
+      body: 'Pathway paused by care team.',
+      createdBy: userId,
+    });
+
+    return updated;
   }
 
   async resume(tenantId: string, id: string, userId: string) {
@@ -376,7 +426,7 @@ export class EnrollmentService {
       );
     }
 
-    return this.prisma.patientPathwayEnrollment.update({
+    const updated = await this.prisma.patientPathwayEnrollment.update({
       where: { id: enrollment.id },
       data: {
         status: 'active',
@@ -384,6 +434,19 @@ export class EnrollmentService {
         updatedBy: userId,
       },
     });
+
+    await this.safePostSystemMessage({
+      tenantId,
+      patientId: updated.patientId,
+      enrollmentId: updated.id,
+      pathwayId: updated.pathwayId,
+      stageId: updated.currentStageId,
+      eventType: 'enrollment_resumed',
+      body: 'Pathway resumed by care team.',
+      createdBy: userId,
+    });
+
+    return updated;
   }
 
   async cancel(
@@ -402,7 +465,7 @@ export class EnrollmentService {
       );
     }
 
-    return this.prisma.patientPathwayEnrollment.update({
+    const updated = await this.prisma.patientPathwayEnrollment.update({
       where: { id: enrollment.id },
       data: {
         status: 'cancelled',
@@ -411,6 +474,20 @@ export class EnrollmentService {
         updatedBy: userId,
       },
     });
+
+    await this.safePostSystemMessage({
+      tenantId,
+      patientId: updated.patientId,
+      enrollmentId: updated.id,
+      pathwayId: updated.pathwayId,
+      stageId: updated.currentStageId,
+      eventType: 'enrollment_cancelled',
+      body: `Pathway cancelled.${reason ? ` Reason: ${reason}` : ''}`,
+      metadata: { reason },
+      createdBy: userId,
+    });
+
+    return updated;
   }
 
   async manualTransition(
@@ -526,6 +603,24 @@ export class EnrollmentService {
         ),
       );
 
+    await this.safePostSystemMessage({
+      tenantId,
+      patientId: updated.patientId,
+      enrollmentId: updated.id,
+      pathwayId: updated.pathwayId,
+      stageId: targetStage.id,
+      eventType: 'stage_transitioned',
+      body: `Patient moved from ${previousStage?.name ?? 'Unknown'} to ${targetStage.name}.${dto.reason ? ` Reason: ${dto.reason}` : ''}`,
+      metadata: {
+        fromStageId: enrollment.currentStageId,
+        fromStageName: previousStage?.name,
+        toStageId: targetStage.id,
+        toStageName: targetStage.name,
+        reason: dto.reason,
+      },
+      createdBy: userId,
+    });
+
     return updated;
   }
 
@@ -538,7 +633,7 @@ export class EnrollmentService {
       throw new NotFoundException(`Active or paused enrollment ${id} not found`);
     }
 
-    return this.prisma.patientPathwayEnrollment.update({
+    const updated = await this.prisma.patientPathwayEnrollment.update({
       where: { id: enrollment.id },
       data: {
         status: 'completed',
@@ -551,6 +646,20 @@ export class EnrollmentService {
         currentStage: { select: { id: true, name: true, code: true, stageType: true } },
       },
     });
+
+    await this.safePostSystemMessage({
+      tenantId,
+      patientId: updated.patientId,
+      enrollmentId: updated.id,
+      pathwayId: updated.pathwayId,
+      stageId: updated.currentStageId,
+      eventType: 'enrollment_completed',
+      body: `Pathway completed.${reason ? ` Reason: ${reason}` : ''}`,
+      metadata: { reason },
+      createdBy: userId,
+    });
+
+    return updated;
   }
 
   async getStageHistory(tenantId: string, enrollmentId: string) {
@@ -676,5 +785,16 @@ export class EnrollmentService {
     }
 
     return enrollment;
+  }
+
+  private async safePostSystemMessage(input: Parameters<CareChatService['postSystemMessage']>[0]) {
+    try {
+      await this.careChat.postSystemMessage(input);
+    } catch (err) {
+      this.logger.error(
+        `Failed to post care chat system message for enrollment ${input.enrollmentId}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
   }
 }

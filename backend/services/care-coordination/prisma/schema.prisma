@@ -630,6 +630,36 @@ model CareTaskEvent {
 }
 
 // ============================================================
+// CARE CHAT MESSAGE
+// ============================================================
+
+model CareChatMessage {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  patientId    String  @map("patient_id") @db.Uuid
+  enrollmentId String? @map("enrollment_id") @db.Uuid
+  pathwayId    String? @map("pathway_id") @db.Uuid
+  stageId      String? @map("stage_id") @db.Uuid
+  taskId       String? @map("task_id") @db.Uuid
+
+  messageType String  @default("user") @map("message_type") @db.VarChar(20)
+  eventType   String? @map("event_type") @db.VarChar(50)
+  body        String  @db.Text
+  metadata    Json?   @db.JsonB
+
+  createdBy String?   @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  editedAt  DateTime? @map("edited_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([tenantId, patientId, createdAt(sort: Desc)])
+  @@index([tenantId, enrollmentId, createdAt(sort: Desc)])
+  @@index([tenantId, taskId, createdAt(sort: Desc)])
+  @@map("care_chat_messages")
+}
+
+// ============================================================
 // ESCALATION RULE
 // ============================================================
 

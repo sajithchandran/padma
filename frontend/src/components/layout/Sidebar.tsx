@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store/ui.store';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from 'next-themes';
 import {
   LayoutDashboard, Users, Route, CheckSquare, ClipboardList,
   MessageSquare, BarChart2, Shield, ChevronDown,
@@ -105,7 +106,10 @@ const NAV_ADMIN: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { theme } = useTheme();
   const { sidebarCollapsed, toggleSidebar, expandedGroups, toggleGroup } = useUIStore();
+
+  const isDark = theme === 'dark';
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return pathname === href;
@@ -120,16 +124,22 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'h-screen flex flex-col bg-slate-950 text-slate-300 transition-all duration-300 ease-in-out flex-shrink-0 z-40 relative group',
+        'h-screen flex flex-col transition-all duration-300 ease-in-out flex-shrink-0 z-40 relative group',
+        isDark 
+          ? 'bg-slate-950 text-slate-300' 
+          : 'bg-background text-slate-600 border-r border-border',
         sidebarCollapsed ? 'w-[80px]' : 'w-[260px]',
       )}
     >
-      {/* Decorative Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-950 to-black pointer-events-none opacity-50" />
+      {/* Decorative Gradient Background (Dark Mode Only) */}
+      {isDark && (
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-950 to-black pointer-events-none opacity-50" />
+      )}
       
       {/* Logo Section */}
       <div className={cn(
-        'relative flex items-center border-b border-white/5 flex-shrink-0 transition-all duration-300',
+        'relative flex items-center border-b flex-shrink-0 transition-all duration-300',
+        isDark ? 'border-white/5' : 'border-border',
         sidebarCollapsed ? 'h-20 justify-center px-0' : 'h-20 gap-3 px-6',
       )}>
         <motion.div 
@@ -145,15 +155,32 @@ export function Sidebar() {
             animate={{ opacity: 1, x: 0 }}
             className="min-w-0"
           >
-            <p className="text-lg font-bold text-white tracking-tight font-display bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Padma</p>
-            <p className="text-[10px] text-slate-500 leading-tight font-bold uppercase tracking-widest -mt-0.5">Clinical Suites</p>
+            <p className={cn(
+              "text-lg font-bold tracking-tight font-display",
+              isDark ? "text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400" : "text-foreground"
+            )}>
+              Padma
+            </p>
+            <p className={cn(
+              "text-[10px] leading-tight font-bold uppercase tracking-widest -mt-0.5",
+              isDark ? "text-slate-500" : "text-muted-foreground"
+            )}>
+              Clinical Suites
+            </p>
           </motion.div>
         )}
       </div>
 
       {/* Navigation */}
       <nav className="relative flex-1 overflow-y-auto py-6 px-3 space-y-1.5 custom-scrollbar">
-        {!sidebarCollapsed && <p className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-4">Main Menu</p>}
+        {!sidebarCollapsed && (
+          <p className={cn(
+            "px-4 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 text-muted-foreground",
+            isDark ? "text-slate-600" : "opacity-70"
+          )}>
+            Main Menu
+          </p>
+        )}
         {NAV_MAIN.map((item) => (
           <NavItemRow
             key={item.id}
@@ -163,12 +190,20 @@ export function Sidebar() {
             active={isGroupActive(item)}
             onToggle={() => toggleGroup(item.id)}
             pathname={pathname}
+            isDark={isDark}
           />
         ))}
 
         <div className="py-4">
-          {!sidebarCollapsed && <p className="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-[0.2em] mb-4">System</p>}
-          <div className="h-px bg-white/5 mx-4 mb-4" />
+          {!sidebarCollapsed && (
+            <p className={cn(
+              "px-4 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 text-muted-foreground",
+              isDark ? "text-slate-600" : "opacity-70"
+            )}>
+              System
+            </p>
+          )}
+          <div className={cn("h-px mx-4 mb-4", isDark ? "bg-white/5" : "bg-border")} />
           {NAV_ADMIN.map((item) => (
             <NavItemRow
               key={item.id}
@@ -178,18 +213,19 @@ export function Sidebar() {
               active={isGroupActive(item)}
               onToggle={() => toggleGroup(item.id)}
               pathname={pathname}
+              isDark={isDark}
             />
           ))}
         </div>
       </nav>
 
       {/* Footer / Toggle */}
-      <div className="relative flex-shrink-0 border-t border-white/5 p-4">
+      <div className={cn("relative flex-shrink-0 border-t p-4", isDark ? "border-white/5" : "border-border/50")}>
         <button
           onClick={toggleSidebar}
           className={cn(
             'group/toggle w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200',
-            'hover:bg-white/5 text-slate-500 hover:text-white',
+            isDark ? 'hover:bg-white/5 text-slate-500 hover:text-white' : 'hover:bg-muted text-muted-foreground hover:text-foreground',
             sidebarCollapsed && 'justify-center',
           )}
           title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -218,17 +254,18 @@ interface NavItemRowProps {
   active: boolean;
   onToggle: () => void;
   pathname: string;
+  isDark: boolean;
 }
 
-function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: NavItemRowProps) {
+function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname, isDark }: NavItemRowProps) {
   const hasChildren = Boolean(item.children?.length);
 
   const rowBase = cn(
     'relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 w-full cursor-pointer select-none group/row',
     collapsed ? 'justify-center px-0 h-12 w-12 mx-auto mb-2' : '',
     active
-      ? 'bg-primary/10 text-primary shadow-sm'
-      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200',
+      ? (isDark ? 'bg-primary/10 text-primary shadow-sm' : 'bg-primary/5 text-primary shadow-sm')
+      : (isDark ? 'text-slate-400 hover:bg-white/5 hover:text-slate-200' : 'text-slate-500 hover:bg-muted hover:text-foreground'),
   );
 
   const activeIndicator = active && (
@@ -242,7 +279,7 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
     return (
       <Link href={item.href} className={rowBase} title={collapsed ? item.label : undefined}>
         {activeIndicator}
-        <span className={cn('flex-shrink-0 transition-transform group-hover/row:scale-110', active ? 'text-primary' : '')}>{item.icon}</span>
+        <span className={cn('flex-shrink-0 transition-transform group-hover/row:scale-110', active ? 'text-primary' : (isDark ? '' : 'text-slate-400'))}>{item.icon}</span>
         {!collapsed && <span className="flex-1 truncate tracking-tight">{item.label}</span>}
         {!collapsed && item.badge != null && item.badge > 0 && (
           <BadgePill count={item.badge} active={active} />
@@ -259,7 +296,7 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
         title={collapsed ? item.label : undefined}
       >
         {activeIndicator}
-        <span className={cn('flex-shrink-0 transition-transform group-hover/row:scale-110', active ? 'text-primary' : '')}>{item.icon}</span>
+        <span className={cn('flex-shrink-0 transition-transform group-hover/row:scale-110', active ? 'text-primary' : (isDark ? '' : 'text-slate-400'))}>{item.icon}</span>
         {!collapsed && (
           <>
             <span className="flex-1 truncate text-left tracking-tight">{item.label}</span>
@@ -269,8 +306,9 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
             {hasChildren && (
               <ChevronDown
                 className={cn(
-                  'h-4 w-4 flex-shrink-0 transition-transform duration-300 text-slate-600 group-hover/row:text-slate-400',
-                  expanded ? 'rotate-0' : '-rotate-90',
+                   'h-4 w-4 flex-shrink-0 transition-transform duration-300 group-hover/row:text-slate-400',
+                   isDark ? 'text-slate-600' : 'text-slate-300',
+                   expanded ? 'rotate-0' : '-rotate-90',
                 )}
               />
             )}
@@ -288,7 +326,7 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="ml-9 border-l border-white/5 space-y-1 py-1">
+            <div className={cn("ml-9 border-l space-y-1 py-1", isDark ? "border-white/5" : "border-border")}>
               {item.children!.map((child) => {
                 const childPath = child.href.split('?')[0];
                 const childActive = pathname === childPath || (childPath !== '/' && pathname.startsWith(childPath));
@@ -299,8 +337,8 @@ function NavItemRow({ item, collapsed, expanded, active, onToggle, pathname }: N
                     className={cn(
                       'flex items-center justify-between px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200',
                       childActive
-                        ? 'text-white'
-                        : 'text-slate-500 hover:text-slate-300 hover:bg-white/5',
+                        ? (isDark ? 'text-white' : 'text-foreground')
+                        : (isDark ? 'text-slate-500 hover:text-slate-300 hover:bg-white/5' : 'text-slate-500 hover:text-foreground hover:bg-muted'),
                     )}
                   >
                     <span className="truncate">{child.label}</span>

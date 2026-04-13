@@ -11,6 +11,8 @@ node_modules/
 
 # Build output
 dist/
+.next/
+frontend/.next/
 coverage/
 *.tsbuildinfo
 

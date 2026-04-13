@@ -249,7 +249,7 @@ export default function EnrollmentPage() {
           { label: 'Protocols',    value: pathways.filter(p => p.status === 'active').length, icon: <Route className="h-5 w-5 text-amber-500" />, bg: 'bg-amber-500/10' },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-            <Card padding="md" variant="glass" className="border-border/60">
+            <Card padding="glass" className="border-border/60">
                <div className="flex items-center gap-4">
                   <div className={cn("h-10 w-10 rounded-2xl flex items-center justify-center flex-shrink-0", s.bg)}>{s.icon}</div>
                   <div>

@@ -8,6 +8,7 @@ import { Prisma } from '.prisma/client-core';
 import { PrismaService } from '../database/prisma.service';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { CareChatService } from '../care-chat/care-chat.service';
 
 export interface TaskFilters {
   patientId?: string;
@@ -20,11 +21,26 @@ export interface TaskFilters {
   careSetting?: string;
 }
 
+type TaskChatContext = {
+  id: string;
+  tenantId: string;
+  patientId: string;
+  enrollmentId: string;
+  stageId: string;
+  title: string;
+  status: string;
+  assignedToUserId?: string | null;
+  assignedToRole?: string | null;
+};
+
 @Injectable()
 export class TasksService {
   private readonly logger = new Logger(TasksService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly careChat: CareChatService,
+  ) {}
 
   async findAll(
     tenantId: string,
@@ -169,6 +185,11 @@ export class TasksService {
       }),
     ]);
 
+    await this.safePostTaskSystemMessage(task, 'task_completed', `Task completed: ${task.title}`, userId, {
+      completionMethod: dto.completionMethod ?? 'manual',
+      completionNotes: dto.completionNotes,
+    });
+
     // Fire-and-forget adherence recalculation
     this.recalculateAdherence(tenantId, task.enrollmentId).catch((err) =>
       this.logger.error(
@@ -212,6 +233,8 @@ export class TasksService {
       }),
     ]);
 
+    await this.safePostTaskSystemMessage(task, 'task_skipped', `Task skipped: ${task.title}.${reason ? ` Reason: ${reason}` : ''}`, userId, { reason });
+
     return this.findOne(tenantId, id);
   }
 
@@ -244,6 +267,8 @@ export class TasksService {
         },
       }),
     ]);
+
+    await this.safePostTaskSystemMessage(task, 'task_cancelled', `Task cancelled: ${task.title}.${reason ? ` Reason: ${reason}` : ''}`, userId, { reason });
 
     return this.findOne(tenantId, id);
   }
@@ -306,6 +331,14 @@ export class TasksService {
       }),
     ]);
 
+    await this.safePostTaskSystemMessage(
+      task,
+      'task_status_changed',
+      `Task status changed: ${task.title} moved from ${task.status} to ${normalizedStatus}.${notes ? ` Notes: ${notes}` : ''}`,
+      userId,
+      { fromStatus: task.status, toStatus: normalizedStatus, notes },
+    );
+
     return this.findOne(tenantId, id);
   }
 
@@ -335,6 +368,14 @@ export class TasksService {
         },
       }),
     ]);
+
+    await this.safePostTaskSystemMessage(
+      task,
+      'task_escalated',
+      `Task escalated: ${task.title} moved to escalation level ${newLevel}.`,
+      userId,
+      { escalationLevel: newLevel },
+    );
 
     return this.findOne(tenantId, id);
   }
@@ -375,6 +416,21 @@ export class TasksService {
       }),
     ]);
 
+    await this.safePostTaskSystemMessage(
+      task,
+      'task_assigned',
+      assignedToUserId
+        ? `Task assigned: ${task.title}.`
+        : `Task assignment cleared: ${task.title}.`,
+      userId,
+      {
+        previousAssignedToUserId: task.assignedToUserId,
+        previousAssignedToRole: task.assignedToRole,
+        assignedToUserId,
+        assignedToRole,
+      },
+    );
+
     return this.findOne(tenantId, id);
   }
 
@@ -395,7 +451,17 @@ export class TasksService {
     // Fetch tasks to record from/to status in events
     const tasks = await this.prisma.careTask.findMany({
       where: { tenantId, id: { in: taskIds }, status: { notIn: ['completed', 'cancelled'] } },
-      select: { id: true, status: true, enrollmentId: true },
+      select: {
+        id: true,
+        tenantId: true,
+        patientId: true,
+        enrollmentId: true,
+        stageId: true,
+        status: true,
+        title: true,
+        assignedToUserId: true,
+        assignedToRole: true,
+      },
     });
 
     if (tasks.length === 0) return;
@@ -430,6 +496,21 @@ export class TasksService {
       this.recalculateAdherence(tenantId, enrollmentId).catch((err) =>
         this.logger.error(
           `Failed adherence recalc for enrollment ${enrollmentId}: ${err.message}`,
+          err.stack,
+        ),
+      );
+    }
+
+    for (const task of tasks) {
+      this.safePostTaskSystemMessage(
+        task,
+        'task_auto_completed',
+        `Task auto-completed: ${task.title}.`,
+        null,
+        { completionMethod, evidence },
+      ).catch((err) =>
+        this.logger.error(
+          `Failed auto-complete care chat event for task ${task.id}: ${err.message}`,
           err.stack,
         ),
       );
@@ -497,5 +578,43 @@ export class TasksService {
     }
 
     return task;
+  }
+
+  private async safePostTaskSystemMessage(
+    task: TaskChatContext,
+    eventType: string,
+    body: string,
+    userId?: string | null,
+    metadata?: Record<string, unknown>,
+  ) {
+    try {
+      const enrollment = await this.prisma.patientPathwayEnrollment.findFirst({
+        where: { id: task.enrollmentId, tenantId: task.tenantId },
+        select: { pathwayId: true },
+      });
+
+      await this.careChat.postSystemMessage({
+        tenantId: task.tenantId,
+        patientId: task.patientId,
+        enrollmentId: task.enrollmentId,
+        pathwayId: enrollment?.pathwayId,
+        stageId: task.stageId,
+        taskId: task.id,
+        eventType,
+        body,
+        metadata: {
+          taskId: task.id,
+          title: task.title,
+          fromStatus: task.status,
+          ...metadata,
+        },
+        createdBy: userId,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to post care chat task event for task ${task.id}: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+    }
   }
 }

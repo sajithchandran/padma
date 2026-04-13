@@ -52,6 +52,17 @@ export async function fetchPatients(params?: {
   return data;
 }
 
+export async function fetchPatient(patientId: string) {
+  const patients = await fetchPatients();
+  const patient = patients.find((item) => item.id === patientId);
+
+  if (!patient) {
+    throw new Error(`Patient ${patientId} not found`);
+  }
+
+  return patient;
+}
+
 export async function searchPatients(params?: {
   q?: string;
   limit?: number;

@@ -29,6 +29,7 @@ import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { CareTeamModule } from './care-team/care-team.module';
 import { PatientsModule } from './patients/patients.module';
+import { CareChatModule } from './care-chat/care-chat.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { PatientsModule } from './patients/patients.module';
     RolesModule,
     CareTeamModule,
     PatientsModule,
+    CareChatModule,
     HealthModule,
   ],
 })
