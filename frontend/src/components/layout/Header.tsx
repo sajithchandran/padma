@@ -19,6 +19,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle?: string }> = {
   '/analytics':     { title: 'Analytics & Reports', subtitle: 'Reports and performance metrics' },
   '/users':         { title: 'Users & Roles', subtitle: 'Team members, roles and permissions' },
   '/care-team':     { title: 'Care Team', subtitle: 'Tenant care-team master directory and eligible roles' },
+  '/observation-items': { title: 'Observation Items', subtitle: 'Tenant clinical observation master data' },
   '/communication-templates': { title: 'Communication Templates', subtitle: 'Manage reusable outbound templates and approvals' },
   '/privacy-consent': { title: 'Privacy & Consent', subtitle: 'Manage patient communication consent records' },
   '/settings':      { title: 'Tenant Settings', subtitle: 'Organisation configuration and feature flags' },

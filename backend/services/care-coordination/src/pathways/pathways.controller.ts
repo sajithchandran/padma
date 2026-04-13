@@ -30,7 +30,7 @@ import { UpdateInterventionDto } from './dto/update-intervention.dto';
 import { CreateTransitionRuleDto } from './dto/create-transition-rule.dto';
 import { UpdateTransitionRuleDto } from './dto/update-transition-rule.dto';
 import { ReorderStagesDto } from './dto/reorder-stages.dto';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { ListPathwaysDto } from './dto/list-pathways.dto';
 
 @ApiTags('Clinical Pathways')
 @Controller('pathways')
@@ -56,13 +56,13 @@ export class PathwaysController {
   @ApiOperation({ summary: 'List clinical pathways (with stage summary + enrollment count)' })
   @ApiQuery({ name: 'category', required: false, description: 'Filter by category' })
   @ApiQuery({ name: 'status', required: false, description: 'draft | active | deprecated' })
+  @ApiQuery({ name: 'code', required: false, description: 'Filter by pathway code to list versions' })
   findAll(
     @Tenant() tenant: TenantContext,
-    @Query() pagination: PaginationDto,
-    @Query('category') category?: string,
-    @Query('status') status?: string,
+    @Query() query: ListPathwaysDto,
   ) {
-    return this.pathwaysService.findAll(tenant.tenantId, { category, status }, pagination);
+    const { category, status, code, ...pagination } = query;
+    return this.pathwaysService.findAll(tenant.tenantId, { category, status, code }, pagination);
   }
 
   // NOTE: Static sub-resource routes MUST be declared before /:id to avoid NestJS

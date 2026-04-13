@@ -37,33 +37,48 @@ enum UserStatus {
   @@map("user_status")
 }
 
+enum ObservationSource {
+  HIS
+  CLINICIAN
+  CARE_COORDINATOR
+  PATIENT
+  DEVICE
+  API
+  IMPORT
+  DERIVED
+
+  @@map("observation_source")
+}
+
 // ============================================================
 // TENANT
 // ============================================================
 
 model Tenant {
-  id          String       @id @default(uuid()) @db.Uuid
-  slug        String       @unique @db.VarChar(100)
-  name        String       @db.VarChar(255)
-  displayName String?      @map("display_name") @db.VarChar(255)
-  status      TenantStatus @default(ACTIVE)
-  country     String       @db.VarChar(2)
-  timezone    String       @default("Asia/Dubai") @db.VarChar(50)
-  locale      String       @default("en") @db.VarChar(10)
-  planTier    String       @default("standard") @map("plan_tier") @db.VarChar(30)
-  maxUsers    Int          @default(50) @map("max_users")
-  trialEndsAt  DateTime?   @map("trial_ends_at") @db.Timestamptz(6)
-  oidcIssuer   String?     @map("oidc_issuer") @db.VarChar(500)
-  oidcClientId String?     @map("oidc_client_id") @db.VarChar(255)
-  oidcAudience String?     @map("oidc_audience") @db.VarChar(255)
-  contactEmail String?     @map("contact_email") @db.VarChar(255)
-  featureFlags Json        @default("{}") @map("feature_flags") @db.JsonB
-  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String       @id @default(uuid()) @db.Uuid
+  slug         String       @unique @db.VarChar(100)
+  name         String       @db.VarChar(255)
+  displayName  String?      @map("display_name") @db.VarChar(255)
+  status       TenantStatus @default(ACTIVE)
+  country      String       @db.VarChar(2)
+  timezone     String       @default("Asia/Dubai") @db.VarChar(50)
+  locale       String       @default("en") @db.VarChar(10)
+  planTier     String       @default("standard") @map("plan_tier") @db.VarChar(30)
+  maxUsers     Int          @default(50) @map("max_users")
+  trialEndsAt  DateTime?    @map("trial_ends_at") @db.Timestamptz(6)
+  oidcIssuer   String?      @map("oidc_issuer") @db.VarChar(500)
+  oidcClientId String?      @map("oidc_client_id") @db.VarChar(255)
+  oidcAudience String?      @map("oidc_audience") @db.VarChar(255)
+  contactEmail String?      @map("contact_email") @db.VarChar(255)
+  featureFlags Json         @default("{}") @map("feature_flags") @db.JsonB
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  users UserTenantRole[]
-  roles Role[]
-  careTeams CareTeam[]
+  users                  UserTenantRole[]
+  roles                  Role[]
+  careTeams              CareTeam[]
+  observationItemMasters ObservationItemMaster[]
+  patientObservations    PatientObservation[]
 
   @@index([status])
   @@map("tenants")
@@ -102,9 +117,9 @@ model Role {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  permissions RolePermission[]
-  users       UserTenantRole[]
+  tenant          Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions     RolePermission[]
+  users           UserTenantRole[]
   careTeamMembers CareTeamMember[]
 
   @@unique([tenantId, code], name: "uq_role_tenant_code")
@@ -151,8 +166,9 @@ model User {
   createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  tenantRoles UserTenantRole[]
+  tenantRoles         UserTenantRole[]
   careTeamMemberships CareTeamMember[]
+  enteredObservations PatientObservation[] @relation("ObservationEnteredBy")
 
   @@index([email])
   @@index([status])
@@ -260,7 +276,7 @@ model ClinicalPathway {
   stages      PathwayStage[]
   transitions StageTransitionRule[]
   enrollments PatientPathwayEnrollment[]
-  careTeam    CareTeam? @relation(fields: [careTeamId], references: [id])
+  careTeam    CareTeam?                  @relation(fields: [careTeamId], references: [id])
 
   @@unique([tenantId, code, version], name: "uq_pathway_tenant_code_version")
   @@index([tenantId, category, isActive])
@@ -297,13 +313,13 @@ model PathwayStage {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  pathway               ClinicalPathway           @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  pathway               ClinicalPathway             @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
   interventionTemplates StageInterventionTemplate[]
-  transitionsFrom       StageTransitionRule[]      @relation("FromStage")
-  transitionsTo         StageTransitionRule[]      @relation("ToStage")
-  currentEnrollments    PatientPathwayEnrollment[] @relation("CurrentStage")
-  stageHistoryFrom      PatientStageHistory[]      @relation("HistoryFromStage")
-  stageHistoryTo        PatientStageHistory[]      @relation("HistoryToStage")
+  transitionsFrom       StageTransitionRule[]       @relation("FromStage")
+  transitionsTo         StageTransitionRule[]       @relation("ToStage")
+  currentEnrollments    PatientPathwayEnrollment[]  @relation("CurrentStage")
+  stageHistoryFrom      PatientStageHistory[]       @relation("HistoryFromStage")
+  stageHistoryTo        PatientStageHistory[]       @relation("HistoryToStage")
 
   @@unique([tenantId, pathwayId, code], name: "uq_stage_tenant_pathway_code")
   @@index([tenantId, pathwayId, sortOrder])
@@ -319,8 +335,8 @@ model StageInterventionTemplate {
   tenantId String @map("tenant_id") @db.Uuid
   stageId  String @map("stage_id") @db.Uuid
 
-  interventionType String @map("intervention_type") @db.VarChar(30)
-  name             String @db.VarChar(255)
+  interventionType String  @map("intervention_type") @db.VarChar(30)
+  name             String  @db.VarChar(255)
   description      String? @db.Text
 
   careSetting  String @default("any") @map("care_setting") @db.VarChar(20)
@@ -362,8 +378,8 @@ model CareTaskTemplate {
   id       String @id @default(uuid()) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
 
-  interventionType String @map("intervention_type") @db.VarChar(30)
-  name             String @db.VarChar(255)
+  interventionType String  @map("intervention_type") @db.VarChar(30)
+  name             String  @db.VarChar(255)
   description      String? @db.Text
 
   careSetting  String @default("any") @map("care_setting") @db.VarChar(20)
@@ -412,8 +428,8 @@ model StageTransitionRule {
   ruleName        String  @map("rule_name") @db.VarChar(255)
   ruleDescription String? @map("rule_description") @db.Text
 
-  triggerType String @map("trigger_type") @db.VarChar(20)
-  conditionExpr Json  @map("condition_expr") @db.JsonB
+  triggerType   String @map("trigger_type") @db.VarChar(20)
+  conditionExpr Json   @map("condition_expr") @db.JsonB
 
   priority    Int     @default(100) @db.SmallInt
   isAutomatic Boolean @default(false) @map("is_automatic")
@@ -424,9 +440,9 @@ model StageTransitionRule {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  pathway      ClinicalPathway     @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
-  fromStage    PathwayStage        @relation("FromStage", fields: [fromStageId], references: [id])
-  toStage      PathwayStage        @relation("ToStage", fields: [toStageId], references: [id])
+  pathway      ClinicalPathway       @relation(fields: [pathwayId], references: [id], onDelete: Cascade)
+  fromStage    PathwayStage          @relation("FromStage", fields: [fromStageId], references: [id])
+  toStage      PathwayStage          @relation("ToStage", fields: [toStageId], references: [id])
   stageHistory PatientStageHistory[]
 
   @@index([tenantId, fromStageId, isActive, priority])
@@ -477,7 +493,7 @@ model PatientPathwayEnrollment {
   athmaPatientId String? @map("athma_patient_id") @db.VarChar(255)
   athmaProductId String? @map("athma_product_id") @db.VarChar(255)
 
-  clinicalData Json? @map("clinical_data") @db.JsonB
+  clinicalData Json?   @map("clinical_data") @db.JsonB
   notes        String? @db.Text
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -485,8 +501,8 @@ model PatientPathwayEnrollment {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   updatedBy String?  @map("updated_by") @db.Uuid
 
-  pathway      ClinicalPathway @relation(fields: [pathwayId], references: [id])
-  currentStage PathwayStage    @relation("CurrentStage", fields: [currentStageId], references: [id])
+  pathway      ClinicalPathway       @relation(fields: [pathwayId], references: [id])
+  currentStage PathwayStage          @relation("CurrentStage", fields: [currentStageId], references: [id])
   tasks        CareTask[]
   stageHistory PatientStageHistory[]
 
@@ -569,23 +585,23 @@ model CareTask {
 
   status String @default("pending") @db.VarChar(20)
 
-  completedAt      DateTime? @map("completed_at") @db.Timestamptz(6)
-  completedBy      String?   @map("completed_by") @db.Uuid
-  completionMethod String?   @map("completion_method") @db.VarChar(30)
-  completionNotes  String?   @map("completion_notes") @db.Text
-  completionEvidence Json?   @map("completion_evidence") @db.JsonB
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+  completedBy        String?   @map("completed_by") @db.Uuid
+  completionMethod   String?   @map("completion_method") @db.VarChar(30)
+  completionNotes    String?   @map("completion_notes") @db.Text
+  completionEvidence Json?     @map("completion_evidence") @db.JsonB
 
   autoCompleteSource    String? @map("auto_complete_source") @db.VarChar(30)
   autoCompleteEventType String? @map("auto_complete_event_type") @db.VarChar(100)
 
-  escalationLevel  Int       @default(0) @map("escalation_level") @db.SmallInt
-  lastEscalatedAt  DateTime? @map("last_escalated_at") @db.Timestamptz(6)
+  escalationLevel Int       @default(0) @map("escalation_level") @db.SmallInt
+  lastEscalatedAt DateTime? @map("last_escalated_at") @db.Timestamptz(6)
 
   lastReminderSentAt DateTime? @map("last_reminder_sent_at") @db.Timestamptz(6)
   reminderCount      Int       @default(0) @map("reminder_count") @db.SmallInt
   nextReminderAt     DateTime? @map("next_reminder_at") @db.Timestamptz(6)
 
-  metadata  Json? @db.JsonB
+  metadata Json? @db.JsonB
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy String?  @map("created_by") @db.Uuid
@@ -657,6 +673,94 @@ model CareChatMessage {
   @@index([tenantId, enrollmentId, createdAt(sort: Desc)])
   @@index([tenantId, taskId, createdAt(sort: Desc)])
   @@map("care_chat_messages")
+}
+
+// ============================================================
+// OBSERVATION ITEM MASTER
+// ============================================================
+
+model ObservationItemMaster {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  code          String  @db.VarChar(100)
+  name          String  @db.VarChar(255)
+  category      String  @db.VarChar(50)
+  dataType      String  @map("data_type") @db.VarChar(30)
+  unit          String? @db.VarChar(50)
+  allowedValues Json?   @map("allowed_values") @db.JsonB
+
+  normalRangeMin Decimal? @map("normal_range_min") @db.Decimal(18, 6)
+  normalRangeMax Decimal? @map("normal_range_max") @db.Decimal(18, 6)
+  criticalLow    Decimal? @map("critical_low") @db.Decimal(18, 6)
+  criticalHigh   Decimal? @map("critical_high") @db.Decimal(18, 6)
+  precisionScale Int?     @map("precision_scale") @db.SmallInt
+
+  isActive     Boolean @default(true) @map("is_active")
+  isMandatory  Boolean @default(false) @map("is_mandatory")
+  displayOrder Int     @default(0) @map("display_order")
+  description  String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  observations PatientObservation[]
+
+  @@unique([tenantId, code], name: "uq_observation_item_master_tenant_code")
+  @@index([tenantId, isActive, category, displayOrder])
+  @@index([tenantId, category, dataType])
+  @@map("observation_item_master")
+}
+
+// ============================================================
+// PATIENT OBSERVATION
+// ============================================================
+
+model PatientObservation {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  patientId String @map("patient_id") @db.Uuid
+  itemId    String @map("item_id") @db.Uuid
+
+  observedAt DateTime @map("observed_at") @db.Timestamptz(6)
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  source            ObservationSource
+  sourceSystem      String?           @map("source_system") @db.VarChar(50)
+  sourceReferenceId String?           @map("source_reference_id") @db.VarChar(255)
+
+  valueNumeric  Decimal?  @map("value_numeric") @db.Decimal(18, 6)
+  valueText     String?   @map("value_text") @db.Text
+  valueBoolean  Boolean?  @map("value_boolean")
+  valueCoded    String?   @map("value_coded") @db.VarChar(100)
+  valueJson     Json?     @map("value_json") @db.JsonB
+  valueDate     DateTime? @map("value_date") @db.Date
+  valueDateTime DateTime? @map("value_date_time") @db.Timestamptz(6)
+
+  unit       String?  @db.VarChar(50)
+  status     String   @default("final") @db.VarChar(20)
+  isAbnormal Boolean? @map("is_abnormal")
+  isCritical Boolean? @map("is_critical")
+
+  enteredByUserId String? @map("entered_by_user_id") @db.Uuid
+  enteredByRole   String? @map("entered_by_role") @db.VarChar(50)
+  deviceId        String? @map("device_id") @db.VarChar(255)
+  notes           String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  item          ObservationItemMaster @relation(fields: [itemId], references: [id])
+  enteredByUser User?                 @relation("ObservationEnteredBy", fields: [enteredByUserId], references: [id])
+
+  @@index([tenantId, patientId])
+  @@index([tenantId, patientId, itemId, observedAt(sort: Desc)])
+  @@index([tenantId, itemId])
+  @@index([tenantId, source])
+  @@index([tenantId, sourceSystem, sourceReferenceId])
+  @@map("patient_observation")
 }
 
 // ============================================================
@@ -759,10 +863,10 @@ model WebhookEvent {
   source    String @db.VarChar(30)
   eventType String @map("event_type") @db.VarChar(100)
 
-  payload     Json     @db.JsonB
-  signature   String?  @db.VarChar(255)
-  processed   Boolean  @default(false)
-  error       String?  @db.Text
+  payload   Json    @db.JsonB
+  signature String? @db.VarChar(255)
+  processed Boolean @default(false)
+  error     String? @db.Text
 
   receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
   processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
@@ -924,8 +1028,8 @@ model ProviderCallback {
 
   callbackType String @map("callback_type") @db.VarChar(30)
 
-  payload     Json    @db.JsonB
-  processed   Boolean @default(false)
+  payload   Json    @db.JsonB
+  processed Boolean @default(false)
 
   receivedAt  DateTime  @default(now()) @map("received_at") @db.Timestamptz(6)
   processedAt DateTime? @map("processed_at") @db.Timestamptz(6)

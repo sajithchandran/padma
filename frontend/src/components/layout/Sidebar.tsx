@@ -95,6 +95,7 @@ const NAV_ADMIN: NavItem[] = [
     children: [
       { label: 'Users & Roles', href: '/users' },
       { label: 'Care Team', href: '/care-team' },
+      { label: 'Observation Items', href: '/observation-items' },
       { label: 'Communication Templates', href: '/communication-templates' },
       { label: 'Privacy & Consent', href: '/privacy-consent' },
       { label: 'Tenant Settings', href: '/settings' },

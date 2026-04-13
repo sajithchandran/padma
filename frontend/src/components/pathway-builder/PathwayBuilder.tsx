@@ -23,12 +23,14 @@ import type {
   TransitionEdgeData,
 } from '@/types/pathway-builder.types';
 import {
+  clonePathway,
   createStage,
   createPathway,
   createTransition,
   deleteStage,
   deleteTransition,
   fetchPathway,
+  fetchPathways,
   fetchStages,
   fetchTransitions,
   publishPathway,
@@ -153,12 +155,15 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
   } = useBuilderStore();
 
   const [pathway, setPathway] = useState<ApiPathway | null>(null);
+  const [pathwayVersions, setPathwayVersions] = useState<ApiPathway[]>([]);
   const [nodes, setNodes] = useState<Node<StageNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge<TransitionEdgeData>[]>([]);
   const [canvasVersion, setCanvasVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [cloneError, setCloneError] = useState<string | null>(null);
+  const [cloning, setCloning] = useState(false);
   const [creatingPathway, setCreatingPathway] = useState(false);
   const [createPathwayError, setCreatePathwayError] = useState<string | null>(null);
   const [newPathwayForm, setNewPathwayForm] = useState({
@@ -207,6 +212,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
     if (isCreateMode) {
       setLoading(false);
       setError(null);
+      setPathwayVersions([]);
       return;
     }
 
@@ -228,9 +234,17 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
       syncPathway(fullPathway);
       rebuildFlow(fullPathway);
+      const versions = await fetchPathways({
+        code: basePathway.code,
+        limit: 50,
+        sortBy: 'version',
+        sortOrder: 'desc',
+      });
+      setPathwayVersions(versions.data);
       takeSnapshot();
       markClean();
       setSaveError(null);
+      setCloneError(null);
     } catch (err: any) {
       const message = err?.response?.data?.message;
       setError(Array.isArray(message) ? message.join(', ') : message ?? 'Failed to load pathway builder.');
@@ -302,7 +316,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
   const handleStageUpdate = useCallback(
     (stageId: string, updates: Partial<ApiStage>) => {
-      if (!pathway) return;
+      if (!pathway || isReadOnly) return;
 
       const next: ApiPathway = {
         ...pathway,
@@ -314,7 +328,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
       syncPathway(next, { dirty: true });
       rebuildFlow(withCanvasPositions(next, nodesRef.current));
     },
-    [pathway, rebuildFlow, syncPathway],
+    [isReadOnly, pathway, rebuildFlow, syncPathway],
   );
 
   const handleDeleteStage = useCallback(
@@ -343,7 +357,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
   const handleTransitionUpdate = useCallback(
     (transitionId: string, updates: Partial<ApiTransition>) => {
-      if (!pathway) return;
+      if (!pathway || isReadOnly) return;
 
       const next: ApiPathway = {
         ...pathway,
@@ -355,7 +369,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
       syncPathway(next, { dirty: true });
       rebuildFlow(withCanvasPositions(next, nodesRef.current));
     },
-    [pathway, rebuildFlow, syncPathway],
+    [isReadOnly, pathway, rebuildFlow, syncPathway],
   );
 
   const handleDeleteTransition = useCallback(
@@ -420,7 +434,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
   }, [isReadOnly, pathway, rebuildFlow, setActivePanel, syncPathway]);
 
   const handleAutoLayout = useCallback(async () => {
-    if (!pathway) return;
+    if (!pathway || isReadOnly) return;
 
     const layouted = await autoLayout(nodesRef.current, edgesRef.current);
     setNodes(layouted);
@@ -429,7 +443,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
     const next = withCanvasPositions(pathway, layouted);
     syncPathway(next, { dirty: true });
     setCanvasVersion((value) => value + 1);
-  }, [pathway, syncPathway]);
+  }, [isReadOnly, pathway, syncPathway]);
 
   const handleNodeSelect = useCallback(
     (nodeId: string | null) => {
@@ -504,18 +518,18 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
   const handleNodesExternalChange = useCallback(
     (nextNodes: Node<StageNodeData>[]) => {
-      if (!pathway) return;
+      if (!pathway || isReadOnly) return;
       setNodes(nextNodes);
       nodesRef.current = nextNodes;
       const next = withCanvasPositions(pathway, nextNodes);
       syncPathway(next, { dirty: true });
     },
-    [pathway, syncPathway],
+    [isReadOnly, pathway, syncPathway],
   );
 
   const handleEdgesExternalChange = useCallback(
     (nextEdges: Edge<TransitionEdgeData>[]) => {
-      if (!pathway) return;
+      if (!pathway || isReadOnly) return;
 
       const remainingIds = new Set(nextEdges.map((edge) => edge.id));
       const next: ApiPathway = {
@@ -530,7 +544,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
           !remainingIds.has(activePanel.id),
       });
     },
-    [activePanel, pathway, syncPathway],
+    [activePanel, isReadOnly, pathway, syncPathway],
   );
 
   const handleSave = useCallback(async () => {
@@ -651,6 +665,24 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
       setPublishing(false);
     }
   }, [isReadOnly, load, pathway, setPublishing]);
+
+  const handleCreateEditableVersion = useCallback(async () => {
+    if (!pathway || cloning) return;
+
+    setCloning(true);
+    setCloneError(null);
+    setSaveError(null);
+
+    try {
+      const cloned = await clonePathway(pathway.id);
+      router.replace(`/pathways/${cloned.id}/builder`);
+    } catch (err: any) {
+      const message = err?.response?.data?.message;
+      setCloneError(Array.isArray(message) ? message.join(', ') : message ?? 'Failed to create editable pathway version.');
+    } finally {
+      setCloning(false);
+    }
+  }, [cloning, pathway, router]);
 
   const livePathway = pathway ?? storePathway;
 
@@ -848,13 +880,29 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <BuilderHeader />
+      <BuilderHeader
+        onCreateEditableVersion={isReadOnly ? handleCreateEditableVersion : undefined}
+        isCloning={cloning}
+        versions={pathwayVersions}
+      />
       <BuilderToolbar
         onAddStage={handleAddStage}
         onAutoLayout={handleAutoLayout}
         onSave={handleSave}
         onPublish={handlePublish}
       />
+
+      {isReadOnly && (
+        <div className="border-b border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
+          This published pathway version is read-only. Create an editable draft version to make changes safely.
+        </div>
+      )}
+
+      {cloneError && (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+          {cloneError}
+        </div>
+      )}
 
       {saveError && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">

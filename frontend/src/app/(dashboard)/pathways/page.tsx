@@ -2,10 +2,11 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Search, Plus, Route, CheckCircle2, PlayCircle, PauseCircle,
   X, ChevronRight, AlertCircle, Loader2, Layers, Clock,
-  Users, Calendar, BarChart2, Settings, Activity,
+  Users, Calendar, BarChart2, Settings, Activity, Copy,
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -387,10 +388,13 @@ function PathwayDetailDrawer({
   careTeams: ApiNamedCareTeam[];
   onPathwayUpdated: (pathway: Pathway) => void;
 }) {
+  const router = useRouter();
   const cat = getCategoryStyle(pathway.category);
   const [selectedCareTeamId, setSelectedCareTeamId] = useState(pathway.careTeamId ?? '');
   const [savingCareTeam, setSavingCareTeam] = useState(false);
   const [careTeamError, setCareTeamError] = useState<string | null>(null);
+  const [cloning, setCloning] = useState(false);
+  const [cloneError, setCloneError] = useState<string | null>(null);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -416,6 +420,19 @@ function PathwayDetailDrawer({
       setCareTeamError(err?.response?.data?.message ?? 'Failed to update care team.');
     } finally {
       setSavingCareTeam(false);
+    }
+  }
+
+  async function handleCreateEditableVersion() {
+    setCloning(true);
+    setCloneError(null);
+    try {
+      const res = await api.post<Pathway>(`/pathways/${pathway.id}/clone`);
+      router.push(`/pathways/${res.data.id}/builder`);
+    } catch (err: any) {
+      setCloneError(err?.response?.data?.message ?? 'Failed to create editable version.');
+    } finally {
+      setCloning(false);
     }
   }
 
@@ -455,13 +472,26 @@ function PathwayDetailDrawer({
           </button>
         </div>
 
-        <div className="px-6 py-4 border-b border-border bg-muted/20">
-          <Button asChild block>
+        <div className="px-6 py-4 border-b border-border bg-muted/20 space-y-3">
+          <Button asChild block variant={pathway.status === 'draft' ? 'default' : 'outline'}>
             <Link href={`/pathways/${pathway.id}/builder`} className="flex items-center gap-2 justify-center">
               <Settings className="h-4 w-4" />
-              Open Pathway Builder
+              {pathway.status === 'draft' ? 'Open Pathway Builder' : 'Open Read-only Builder'}
             </Link>
           </Button>
+          {pathway.status !== 'draft' && (
+            <Button
+              block
+              icon={<Copy className="h-4 w-4" />}
+              onClick={handleCreateEditableVersion}
+              loading={cloning}
+            >
+              Create Editable Version
+            </Button>
+          )}
+          {cloneError && (
+            <p className="text-xs font-semibold text-red-500">{cloneError}</p>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 custom-scrollbar">

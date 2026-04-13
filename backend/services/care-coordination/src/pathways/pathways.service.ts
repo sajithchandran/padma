@@ -118,7 +118,7 @@ export class PathwaysService {
 
   async findAll(
     tenantId: string,
-    filters: { category?: string; status?: string },
+    filters: { category?: string; status?: string; code?: string },
     pagination: PaginationDto,
   ): Promise<PaginatedResponse<any>> {
     const { page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc' } = pagination;
@@ -127,6 +127,7 @@ export class PathwaysService {
     const where: any = { tenantId, isActive: true };
     if (filters.category) where.category = filters.category;
     if (filters.status) where.status = filters.status;
+    if (filters.code) where.code = filters.code;
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.clinicalPathway.findMany({

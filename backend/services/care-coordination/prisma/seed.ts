@@ -1,5 +1,10 @@
 import { PrismaClient } from '../node_modules/.prisma/client';
 import * as bcrypt from 'bcrypt';
+import { seedObservationItems } from './seeds/observation-items';
+import {
+  seedCareTaskTemplatesFromPathwayInterventions,
+  seedPathwayInterventions,
+} from './seeds/pathway-interventions';
 
 const DEMO_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? 'Padma@123';
 const BCRYPT_ROUNDS = 12;
@@ -255,6 +260,11 @@ async function main() {
       console.log(`      Pathway already exists: ${pw.name}`);
     }
   }
+
+  // 8. Observation item master
+  await seedPathwayInterventions(prisma, tenant.id);
+  await seedCareTaskTemplatesFromPathwayInterventions(prisma, tenant.id, user.id);
+  await seedObservationItems(prisma, tenant.id);
 
   console.log('✅  Seed complete.');
   console.log(`   Tenant ID : ${tenant.id}`);

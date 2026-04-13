@@ -9,6 +9,19 @@ import type {
 
 // ─── Pathway CRUD ───────────────────────────────────────────────────────────
 
+export async function fetchPathways(params?: {
+  code?: string;
+  category?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}): Promise<{ data: ApiPathway[]; meta: { total: number; page: number; limit: number; totalPages: number } }> {
+  const { data } = await api.get('/pathways', { params });
+  return data;
+}
+
 export async function fetchPathway(id: string): Promise<ApiPathway> {
   const { data } = await api.get(`/pathways/${id}`);
   return data;
@@ -53,6 +66,11 @@ export async function updatePathway(
 
 export async function publishPathway(id: string) {
   const { data } = await api.post(`/pathways/${id}/publish`);
+  return data;
+}
+
+export async function clonePathway(id: string): Promise<ApiPathway> {
+  const { data } = await api.post(`/pathways/${id}/clone`);
   return data;
 }
 

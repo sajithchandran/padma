@@ -30,6 +30,7 @@ import { AuthModule } from './auth/auth.module';
 import { CareTeamModule } from './care-team/care-team.module';
 import { PatientsModule } from './patients/patients.module';
 import { CareChatModule } from './care-chat/care-chat.module';
+import { ObservationsModule } from './observations/observations.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { CareChatModule } from './care-chat/care-chat.module';
     CareTeamModule,
     PatientsModule,
     CareChatModule,
+    ObservationsModule,
     HealthModule,
   ],
 })
