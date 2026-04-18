@@ -19,6 +19,7 @@ import type { TenantContext } from '../common/decorators';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CommunicationService } from './communication.service';
+import { ListMessagesDto } from './dto/list-messages.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 
 @ApiTags('Communication')
@@ -39,12 +40,10 @@ export class CommunicationController {
   @ApiQuery({ name: 'status', required: false, description: 'Filter by delivery status' })
   listMessages(
     @Tenant() tenant: TenantContext,
-    @Query() pagination: PaginationDto,
-    @Query('patientId') patientId?: string,
-    @Query('direction') direction?: string,
-    @Query('channel') channel?: string,
-    @Query('status') status?: string,
+    @Query() query: ListMessagesDto,
   ) {
+    const { patientId, direction, channel, status, ...pagination } = query;
+
     return this.communicationService.listMessages(
       tenant.tenantId,
       { patientId, direction, channel, status },

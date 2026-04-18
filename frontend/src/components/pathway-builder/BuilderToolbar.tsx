@@ -26,27 +26,27 @@ export function BuilderToolbar({
   const { isReadOnly, isDirty, isSaving, isPublishing } = useBuilderStore();
 
   return (
-    <div className="h-11 border-b border-border bg-card/80 backdrop-blur-md px-4 flex items-center gap-2 shrink-0">
+    <div className="h-12 border-b border-border/40 bg-card/60 backdrop-blur-xl px-4 flex items-center gap-2 shrink-0 transition-all duration-300">
       {/* Left actions */}
       {!isReadOnly && (
         <>
           <button
             onClick={onAddStage}
-            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-primary hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-all"
+            className="group flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground hover:text-primary hover:bg-primary/5 px-3 py-2 rounded-xl transition-all duration-300 active:scale-95"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
             Add Stage
           </button>
 
-          <div className="w-px h-5 bg-border" />
+          <div className="w-px h-5 bg-border/40 mx-1" />
         </>
       )}
 
       <button
         onClick={onAutoLayout}
-        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted px-2.5 py-1.5 rounded-lg transition-all"
+        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground hover:bg-muted/40 px-3 py-2 rounded-xl transition-all duration-300 active:scale-95"
       >
-        <LayoutGrid className="w-3.5 h-3.5" />
+        <LayoutGrid className="w-4 h-4 opacity-70" />
         Auto Layout
       </button>
 
@@ -55,21 +55,21 @@ export function BuilderToolbar({
 
       {/* Right actions */}
       {!isReadOnly && (
-        <>
+        <div className="flex items-center gap-3">
           <button
             onClick={onSave}
             disabled={isSaving || !isDirty}
             className={cn(
-              "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all shadow-sm",
+              "flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] px-4 py-2 rounded-xl transition-all duration-300 shadow-xl active:scale-95",
               isDirty
-                ? 'text-primary-foreground bg-primary hover:bg-primary/90'
-                : 'text-muted-foreground bg-muted cursor-not-allowed opacity-50 shadow-none'
+                ? 'text-primary-foreground bg-primary hover:bg-primary/90 shadow-primary/20'
+                : 'text-muted-foreground bg-muted/40 cursor-not-allowed opacity-50 shadow-none'
             )}
           >
             {isSaving ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-4 h-4" />
             )}
             {isSaving ? 'Saving...' : 'Save'}
           </button>
@@ -78,20 +78,20 @@ export function BuilderToolbar({
             onClick={onPublish}
             disabled={isPublishing || isDirty}
             className={cn(
-              "flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all shadow-sm",
+              "flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] px-4 py-2 rounded-xl transition-all duration-300 shadow-xl active:scale-95",
               !isDirty && !isPublishing
-                ? 'text-white bg-emerald-500 hover:bg-emerald-600'
-                : 'text-muted-foreground bg-muted cursor-not-allowed opacity-50 shadow-none'
+                ? 'text-white bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
+                : 'text-muted-foreground bg-muted/40 cursor-not-allowed opacity-50 shadow-none'
             )}
           >
             {isPublishing ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Upload className="w-3.5 h-3.5" />
+              <Upload className="w-4 h-4" />
             )}
             {isPublishing ? 'Publishing...' : 'Publish'}
           </button>
-        </>
+        </div>
       )}
     </div>
   );

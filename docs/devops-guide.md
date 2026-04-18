@@ -1,7 +1,7 @@
 # Padma — DevOps & Operations Guide
 
-> **Last updated:** 2026-04-04
-> **Stack:** NestJS 10 · Next.js 14 · PostgreSQL 16 · Redis 7 · Docker / Docker Compose
+> **Last updated:** 2026-04-18
+> **Stack:** NestJS 11 · Next.js 14 · PostgreSQL 16 · Redis 7 · Docker / Docker Compose
 
 ---
 
@@ -37,8 +37,9 @@ padma/
 │           ├── src/
 │           ├── dist/                 ← compiled output (git-ignored)
 │           ├── prisma/
-│           │   ├── schema-core.prisma
-│           │   └── schema-engagement.prisma
+│           │   ├── schema.prisma       ← unified Prisma schema
+│           │   ├── schema-core.prisma  ← legacy split-schema reference
+│           │   └── schema-engagement.prisma ← legacy split-schema reference
 │           ├── Dockerfile
 │           ├── docker-entrypoint.sh
 │           └── .env.example
@@ -130,17 +131,33 @@ cp backend/services/care-coordination/.env.example \
 
 | Variable | Dev value | Description |
 |----------|-----------|-------------|
-| `DATABASE_CORE_URL` | `postgresql://padma:padma_dev_secret@localhost:5433/padma_core?schema=public` | Core database (tenants, users, RBAC) |
-| `DATABASE_ENGAGEMENT_URL` | `postgresql://padma:padma_dev_secret@localhost:5433/padma_engagement?schema=public` | Engagement database (pathways, tasks) |
+| `DATABASE_URL` | `postgresql://padma:padma_dev_secret@localhost:5433/padma_dev?schema=public` | Unified application database used by `prisma/schema.prisma` |
 | `REDIS_HOST` | `localhost` | Redis hostname (`redis` in Docker) |
 | `REDIS_PORT` | `6380` | Redis port (`6379` internally in Docker) |
-| `JWT_PUBLIC_KEY` | _(empty for dev)_ | OIDC public key for JWT verification |
+| `JWT_PUBLIC_KEY` | _(required)_ | RS256 public key for JWT verification |
+| `JWT_PRIVATE_KEY` | _(required for local `/auth/login`)_ | RS256 private key used by the local login endpoint to issue tokens |
 | `JWT_ISSUER` | `https://auth.padma.local` | OIDC issuer URL |
 | `PORT` | `3020` | API server port |
 | `NODE_ENV` | `development` | Environment flag |
 | `ATHMA_WEBHOOK_SECRET` | `dev-athma-webhook-secret` | Webhook HMAC secret |
 
 > **Docker note:** When running in Docker, the backend uses container hostnames (`postgres`, `redis`) instead of `localhost`. These are set directly in `docker-compose.yml` and override `.env`.
+
+Auth and key-management details are documented in [Security Architecture and Implementation](./security-architecture.md).
+
+### Generate a local RS256 key pair
+
+Local `/auth/login` requires a private key for signing and a matching public key for the global JWT guard:
+
+```bash
+# Private key
+openssl genrsa 2048
+
+# Public key from a saved private key
+openssl pkey -in jwt-private.pem -pubout
+```
+
+Store PEM values in `.env` with escaped newlines (`\n`). Do not commit production keys.
 
 ### Frontend — `frontend/.env.local`
 
@@ -246,8 +263,7 @@ postgres ──healthy──→ redis ──healthy──→ backend ──healt
 The backend `docker-entrypoint.sh` auto-runs migrations before the server starts:
 
 ```sh
-npx prisma migrate deploy --schema=prisma/schema-core.prisma
-npx prisma migrate deploy --schema=prisma/schema-engagement.prisma
+npx prisma migrate deploy --schema=prisma/schema.prisma
 exec node dist/main
 ```
 
@@ -358,14 +374,15 @@ docker compose down
 
 ## 6. Database Management
 
-### 6.1 Prisma schemas
+### 6.1 Prisma schema
 
-The project uses **two separate Prisma schemas**:
+The active service uses one unified Prisma schema:
 
 | Schema | Database | Purpose |
 |--------|----------|---------|
-| `prisma/schema-core.prisma` | `padma_core` | Tenants, Users, RBAC, Roles, Permissions |
-| `prisma/schema-engagement.prisma` | `padma_engagement` | Pathways, Tasks, Enrollment, Communications |
+| `prisma/schema.prisma` | `DATABASE_URL` | Tenants, users, RBAC, pathways, tasks, enrollment, communications, privacy, and observations |
+
+`schema-core.prisma` and `schema-engagement.prisma` remain in the repository as legacy split-schema references, but build/generate/migrate scripts use `prisma/schema.prisma`.
 
 ### 6.2 Run migrations
 
@@ -373,12 +390,10 @@ The project uses **two separate Prisma schemas**:
 cd backend/services/care-coordination
 
 # Development (creates migration files, applies immediately)
-npx prisma migrate dev --schema=prisma/schema-core.prisma --name <migration_name>
-npx prisma migrate dev --schema=prisma/schema-engagement.prisma --name <migration_name>
+npm run prisma:migrate:dev -- --name <migration_name>
 
 # Production (apply existing migration files only — no new files created)
-npx prisma migrate deploy --schema=prisma/schema-core.prisma
-npx prisma migrate deploy --schema=prisma/schema-engagement.prisma
+npm run prisma:migrate:prod
 ```
 
 ### 6.3 Generate Prisma clients
@@ -389,15 +404,14 @@ Must be re-run after any schema change:
 cd backend/services/care-coordination
 npm run prisma:generate
 # equivalent to:
-# npx prisma generate --schema=prisma/schema-core.prisma
-# npx prisma generate --schema=prisma/schema-engagement.prisma
+# npx prisma generate --schema=prisma/schema.prisma
 ```
 
 ### 6.4 Seed demo data
 
 ```bash
 cd backend/services/care-coordination
-npx ts-node prisma/seed-core.ts
+npm run prisma:seed
 ```
 
 Seeded records:
@@ -411,8 +425,7 @@ Seeded records:
 ```bash
 # ⚠️ Destructive — wipes ALL data and re-runs migrations
 cd backend/services/care-coordination
-npx prisma migrate reset --schema=prisma/schema-core.prisma
-npx prisma migrate reset --schema=prisma/schema-engagement.prisma
+npx prisma migrate reset --schema=prisma/schema.prisma
 ```
 
 ### 6.6 Open Prisma Studio (GUI)
@@ -420,21 +433,17 @@ npx prisma migrate reset --schema=prisma/schema-engagement.prisma
 ```bash
 cd backend/services/care-coordination
 
-# Core schema
-npx prisma studio --schema=prisma/schema-core.prisma      # http://localhost:5555
-
-# Engagement schema (open in another terminal on a different port)
-npx prisma studio --schema=prisma/schema-engagement.prisma --port 5556
+npm run prisma:studio      # http://localhost:5555
 ```
 
 ### 6.7 Connect with psql
 
 ```bash
 # Via Docker container
-docker exec -it padma-postgres psql -U padma -d padma_core
+docker exec -it padma-postgres psql -U padma -d padma_dev
 
 # Via local psql (Docker-mapped port)
-psql postgresql://padma:padma_dev_secret@localhost:5433/padma_core
+psql postgresql://padma:padma_dev_secret@localhost:5433/padma_dev
 ```
 
 ---
@@ -482,7 +491,17 @@ cd backend/services/care-coordination && npx tsc --noEmit
 cd frontend && npm run type-check
 ```
 
-### 7.5 Linting
+### 7.5 Current verification baseline
+
+Use this set after API or frontend changes:
+
+```bash
+cd backend/services/care-coordination && npm run build
+cd frontend && npm run type-check
+cd frontend && npm run build
+```
+
+### 7.6 Linting
 
 ```bash
 # Backend
@@ -665,12 +684,12 @@ Ensure `tsconfig.build.json` uses `include` (not `rootDir`) to control output:
 If migrations fail in the entrypoint, check:
 1. PostgreSQL is healthy before the backend starts (`depends_on: condition: service_healthy`)
 2. The migration files exist in `prisma/migrations/`
-3. The `DATABASE_CORE_URL` / `DATABASE_ENGAGEMENT_URL` are correct for the Docker network
+3. `DATABASE_URL` is correct for the Docker network
 
 ```bash
 # Check migration status manually inside the container
 docker exec -it padma-backend sh
-npx prisma migrate status --schema=prisma/schema-core.prisma
+npx prisma migrate status --schema=prisma/schema.prisma
 ```
 
 ---

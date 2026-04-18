@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -32,10 +33,7 @@ async function bootstrap() {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
-      'x-tenant-id',
-      'x-user-id',
       'x-facility-id',
-      'x-user-roles',
       'Idempotency-Key',
     ],
     maxAge: 3600,
@@ -57,6 +55,9 @@ async function bootstrap() {
   // Global exception filter — never leaks internal details
   app.useGlobalFilters(new GlobalExceptionFilter());
 
+  // Global JWT authentication and tenant-context resolution.
+  app.useGlobalGuards(app.get(JwtAuthGuard));
+
   // Audit logging
   app.useGlobalInterceptors(new AuditLogInterceptor());
 
@@ -66,10 +67,6 @@ async function bootstrap() {
     .setDescription('Clinical Pathway & Care Coordination Platform')
     .setVersion('1.0')
     .addBearerAuth()
-    .addApiKey(
-      { type: 'apiKey', name: 'x-tenant-id', in: 'header' },
-      'tenant-id',
-    )
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);

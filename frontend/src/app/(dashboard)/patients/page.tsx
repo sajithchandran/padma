@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { 
   AlertCircle, ArrowRight, ChevronDown, ChevronUp,
-  Search, X, MoreHorizontal, UserPlus
+  Search, X, MoreHorizontal
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -100,6 +100,8 @@ function PathwaySelectionModal({
 
 export default function PatientsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const patientFilter = searchParams.get('filter') === 'mine' ? 'mine' : undefined;
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [sortKey, setSortKey] = useState<SortKey>('lastActivityAt');
@@ -107,8 +109,12 @@ export default function PatientsPage() {
   const [pathwayPickerPatient, setPathwayPickerPatient] = useState<ApiPatientListItem | null>(null);
 
   const { data: patients = [], isLoading, isError, error } = useQuery({
-    queryKey: ['patients', search, statusFilter],
-    queryFn: () => fetchPatients({ q: search.trim() || undefined, status: statusFilter === 'ALL' ? undefined : statusFilter }),
+    queryKey: ['patients', search, statusFilter, patientFilter],
+    queryFn: () => fetchPatients({
+      q: search.trim() || undefined,
+      status: statusFilter === 'ALL' ? undefined : statusFilter,
+      filter: patientFilter,
+    }),
   });
 
   const filtered = useMemo(() => {
@@ -140,9 +146,6 @@ export default function PatientsPage() {
       <div className="flex flex-col sm:flex-row gap-4 items-center">
         <div className="w-full sm:flex-1">
           <Input placeholder="Search clinicians, roles, or email…" value={search} onChange={(e) => setSearch(e.target.value)} icon={<Search className="h-4 w-4" />} />
-        </div>
-        <div className="flex w-full sm:w-auto gap-2">
-           <Button icon={<UserPlus className="h-4 w-4" />} block className="sm:w-auto">Register Patient</Button>
         </div>
       </div>
 

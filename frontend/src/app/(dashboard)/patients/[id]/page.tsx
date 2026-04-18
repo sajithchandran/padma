@@ -74,13 +74,6 @@ export default function PatientDetailPage() {
 
       <PatientHeader patient={patient} activeEnrollment={selectedEnrollment} />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SummaryCard label="Enrolled Pathways" value={patient.enrolledPathways} />
-        <SummaryCard label="Open Tasks" value={patient.openTasks} tone={patient.openTasks > 0 ? 'warn' : 'ok'} />
-        <SummaryCard label="Overdue Tasks" value={patient.overdueTasks} tone={patient.overdueTasks > 0 ? 'danger' : 'ok'} />
-        <SummaryCard label="Last Activity" value={formatDateTime(patient.lastActivityAt)} />
-      </div>
-
       <Card padding="none" className="overflow-hidden border-border/60">
         <div className="border-b border-border/60 bg-muted/20 px-5 py-4">
           <h2 className="font-display text-base font-black text-foreground">Patient Pathways</h2>
@@ -148,24 +141,6 @@ export default function PatientDetailPage() {
         <PatientPathwayMonitorContent patient={patient} enrollment={selectedEnrollment} />
       )}
     </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: React.ReactNode;
-  tone?: 'ok' | 'warn' | 'danger';
-}) {
-  const toneClass = tone === 'danger' ? 'text-red-500' : tone === 'warn' ? 'text-amber-500' : tone === 'ok' ? 'text-emerald-500' : 'text-foreground';
-  return (
-    <Card padding="sm" className="border-border/60">
-      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className={`mt-1 truncate text-xl font-black ${toneClass}`}>{value}</p>
-    </Card>
   );
 }
 

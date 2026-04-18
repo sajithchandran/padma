@@ -8,18 +8,12 @@ const api = axios.create({
   },
 });
 
-// Inject tenant/auth headers from session storage (populated after login)
+// Inject auth token from session storage (populated after login)
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    const token    = sessionStorage.getItem('padma_token');
-    const tenantId = sessionStorage.getItem('padma_tenant_id');
-    const userId   = sessionStorage.getItem('padma_user_id');
-    const userRole = sessionStorage.getItem('padma_user_role');
+    const token = sessionStorage.getItem('padma_token');
 
-    if (token)    config.headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) config.headers['x-tenant-id']  = tenantId;
-    if (userId)   config.headers['x-user-id']    = userId;
-    if (userRole) config.headers['x-user-roles'] = userRole;
+    if (token) config.headers['Authorization'] = `Bearer ${token}`;
   }
   return config;
 });

@@ -133,12 +133,14 @@ export interface StageNodeData extends Record<string, unknown> {
   interventionCount: number;
   isSelected: boolean;
   isReadOnly: boolean;
+  patientState?: 'current' | 'visited' | 'upcoming';
 }
 
 export interface TransitionEdgeData extends Record<string, unknown> {
   transition: ApiTransition;
   isSelected: boolean;
   isReadOnly: boolean;
+  patientState?: 'completed' | 'available' | 'upcoming';
 }
 
 export type StageType = 'entry' | 'intermediate' | 'decision' | 'terminal';

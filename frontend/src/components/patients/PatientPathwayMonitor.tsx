@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Progress } from '@/components/ui/Progress';
 import { CareChatPanel } from '@/components/patients/CareChatPanel';
+import { PatientPathwayDiagram } from '@/components/patients/PatientPathwayDiagram';
 import type { ApiPatientListItem } from '@/services/patients.service';
 import {
   fetchStageHistory,
@@ -161,6 +162,13 @@ export function PatientPathwayMonitorContent({
             )}
           </div>
         </Card>
+
+        <PatientPathwayDiagram
+          pathwayId={enrollment.pathwayId}
+          currentStageId={enrollment.currentStage.id}
+          status={enrollment.status}
+          stageHistory={historyQuery.data ?? []}
+        />
 
         <Card padding="none" className="overflow-hidden border-border/60">
           <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-5 py-4">

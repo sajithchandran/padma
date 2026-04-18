@@ -138,6 +138,11 @@ function withCanvasPositions(
   };
 }
 
+function hasSavedPosition(stage: ApiStage) {
+  const position = stage.metadata?.position;
+  return typeof position?.x === 'number' && typeof position?.y === 'number';
+}
+
 export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
   const router = useRouter();
   const {
@@ -162,6 +167,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveWarning, setSaveWarning] = useState<string | null>(null);
   const [cloneError, setCloneError] = useState<string | null>(null);
   const [cloning, setCloning] = useState(false);
   const [creatingPathway, setCreatingPathway] = useState(false);
@@ -244,6 +250,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
       takeSnapshot();
       markClean();
       setSaveError(null);
+      setSaveWarning(null);
       setCloneError(null);
     } catch (err: any) {
       const message = err?.response?.data?.message;
@@ -552,6 +559,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
     setSaving(true);
     setSaveError(null);
+    setSaveWarning(null);
 
     try {
       const current = withCanvasPositions(pathway, nodesRef.current);
@@ -640,7 +648,14 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
         await deleteTransition(transitionId);
       }
 
+      const savedStages = await fetchStages(current.id);
+      const missingPositions = savedStages.filter((stage) => !hasSavedPosition(stage));
       await load();
+      if (missingPositions.length > 0) {
+        setSaveWarning(
+          `${missingPositions.length} stage${missingPositions.length === 1 ? '' : 's'} saved without canvas coordinates. Patient Monitor will use fallback layout for those stages.`,
+        );
+      }
     } catch (err: any) {
       const message = err?.response?.data?.message;
       setSaveError(Array.isArray(message) ? message.join(', ') : message ?? 'Failed to save pathway changes.');
@@ -654,6 +669,7 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
 
     setPublishing(true);
     setSaveError(null);
+    setSaveWarning(null);
 
     try {
       await publishPathway(pathway.id);
@@ -907,6 +923,12 @@ export function PathwayBuilder({ pathwayId }: PathwayBuilderProps) {
       {saveError && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
           {saveError}
+        </div>
+      )}
+
+      {saveWarning && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          {saveWarning}
         </div>
       )}
 

@@ -71,9 +71,9 @@ export function CareChatPanel({
             <div
               key={message.id}
               className={cn(
-                'rounded-2xl border px-4 py-3',
+                'rounded-2xl border px-4 py-3 transition-colors duration-300',
                 message.messageType === 'system'
-                  ? 'border-blue-100 bg-blue-50 text-blue-900'
+                  ? 'border-blue-500/20 bg-blue-500/[0.03] text-blue-900 dark:text-blue-300'
                   : 'border-border/60 bg-card text-foreground shadow-sm',
               )}
             >
@@ -81,7 +81,7 @@ export function CareChatPanel({
                 <div
                   className={cn(
                     'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl',
-                    message.messageType === 'system' ? 'bg-blue-100 text-blue-700' : 'bg-primary/10 text-primary',
+                    message.messageType === 'system' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-primary/10 text-primary',
                   )}
                 >
                   {message.messageType === 'system' ? <Bot className="h-3.5 w-3.5" /> : <Avatar name={message.author?.name ?? 'Care Team'} size="xs" />}

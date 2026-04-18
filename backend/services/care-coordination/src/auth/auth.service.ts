@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
   NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
@@ -44,7 +45,8 @@ export interface LoginResponse {
 
 @Injectable()
 export class AuthService {
-  private readonly jwtSecret: string;
+  private readonly jwtPrivateKey: string;
+  private readonly jwtPublicKey: string;
   private readonly jwtIssuer: string;
   private readonly TOKEN_TTL_SECONDS = 8 * 60 * 60; // 8 hours
 
@@ -52,9 +54,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {
-    // JWT_SECRET is used for HS256 signing (dev / demo logins).
-    // In production with a real OIDC provider the public key (RS256) takes over.
-    this.jwtSecret = this.config.get<string>('auth.jwtSecret') ?? 'padma-dev-secret-change-in-prod';
+    this.jwtPrivateKey = this.normalizePem(this.config.get<string>('auth.jwtPrivateKey'));
+    this.jwtPublicKey = this.normalizePem(this.config.get<string>('auth.jwtPublicKey'));
     this.jwtIssuer = this.config.get<string>('auth.jwtIssuer') ?? 'https://auth.padma.local';
   }
 
@@ -111,8 +112,12 @@ export class AuthService {
       iss: this.jwtIssuer,
     };
 
-    const token = jwt.sign(payload, this.jwtSecret, {
-      algorithm: 'HS256',
+    if (!this.jwtPrivateKey) {
+      throw new InternalServerErrorException('JWT private key is not configured');
+    }
+
+    const token = jwt.sign(payload, this.jwtPrivateKey, {
+      algorithm: 'RS256',
       expiresIn: this.TOKEN_TTL_SECONDS,
     });
 
@@ -148,12 +153,17 @@ export class AuthService {
     };
   }
 
-  // ─── Verify (used by middleware for HS256 dev tokens) ────────────────────
+  // ─── Verify (used by /auth/me for RS256 tokens) ─────────────────────────
 
   verifyToken(token: string): AuthTokenPayload {
+    if (!this.jwtPublicKey) {
+      throw new UnauthorizedException('JWT public key is not configured');
+    }
+
     try {
-      return jwt.verify(token, this.jwtSecret, {
-        algorithms: ['HS256'],
+      return jwt.verify(token, this.jwtPublicKey, {
+        algorithms: ['RS256'],
+        issuer: this.jwtIssuer,
       }) as AuthTokenPayload;
     } catch (err: any) {
       throw new UnauthorizedException(`Invalid or expired token: ${err.message}`);
@@ -173,5 +183,9 @@ export class AuthService {
       .split(/[._-]/)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
+  }
+
+  private normalizePem(value?: string): string {
+    return value?.replace(/\\n/g, '\n').trim() ?? '';
   }
 }

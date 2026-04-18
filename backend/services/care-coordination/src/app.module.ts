@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -10,7 +10,6 @@ import {
   integrationConfig,
 } from './config';
 import { DatabaseModule } from './database';
-import { TenantMiddleware } from './common/middleware/tenant.middleware';
 import { PathwaysModule } from './pathways/pathways.module';
 import { EnrollmentModule } from './enrollment/enrollment.module';
 import { PathwayEngineModule } from './pathway-engine/pathway-engine.module';
@@ -31,6 +30,7 @@ import { CareTeamModule } from './care-team/care-team.module';
 import { PatientsModule } from './patients/patients.module';
 import { CareChatModule } from './care-chat/care-chat.module';
 import { ObservationsModule } from './observations/observations.module';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
   imports: [
@@ -44,7 +44,7 @@ import { ObservationsModule } from './observations/observations.module';
     ]),
     ScheduleModule.forRoot(),
     DatabaseModule,
-    AuthModule,        // ← Auth module (login/logout) — excluded from TenantMiddleware below
+    AuthModule,
     PathwaysModule,
     EnrollmentModule,
     PathwayEngineModule,
@@ -65,16 +65,6 @@ import { ObservationsModule } from './observations/observations.module';
     ObservationsModule,
     HealthModule,
   ],
+  providers: [JwtAuthGuard],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(TenantMiddleware)
-      .exclude(
-        'health',           // GET /api/v1/health
-        'webhooks/(.*)',    // POST /api/v1/webhooks/*
-        'auth/(.*)',        // POST /api/v1/auth/login, /logout, GET /auth/me
-      )
-      .forRoutes('*');
-  }
-}
+export class AppModule {}

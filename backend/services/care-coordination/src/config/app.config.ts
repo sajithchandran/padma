@@ -18,9 +18,8 @@ export const redisConfig = registerAs('redis', () => ({
 
 export const authConfig = registerAs('auth', () => ({
   jwtPublicKey: process.env.JWT_PUBLIC_KEY || '',
+  jwtPrivateKey: process.env.JWT_PRIVATE_KEY || '',
   jwtIssuer:   process.env.JWT_ISSUER || 'https://auth.padma.local',
-  // HS256 secret for dev/demo login. Replace with RS256 key pair for production OIDC.
-  jwtSecret:   process.env.JWT_SECRET || 'padma-dev-secret-CHANGE-IN-PRODUCTION',
 }));
 
 export const integrationConfig = registerAs('integration', () => ({

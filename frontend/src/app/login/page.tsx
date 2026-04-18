@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Heart, Shield, Zap, Users, ArrowRight,
-  CheckCircle2, Lock, AlertCircle, Eye, EyeOff, Mail,
+  CheckCircle2, Lock, AlertCircle, Eye, EyeOff, Mail, Loader2
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth.store';
 import { authService } from '@/services/auth.service';
 
@@ -63,223 +64,223 @@ export default function LoginPage() {
   const isFormValid = email.trim().length > 0 && password.length > 0;
 
   return (
-    <div className="min-h-screen flex overflow-hidden" style={{ height: '100dvh' }}>
-
-      {/* ── Left Panel ─────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-[52%] flex-col bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-12 relative overflow-hidden">
-        <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" />
-        <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
+    <div className="min-h-screen flex overflow-hidden bg-[#fafafa] dark:bg-slate-950" style={{ height: '100dvh' }}>
+      {/* ── Left Panel (Brand & Social Proof) ────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-[48%] flex-col p-12 relative overflow-hidden bg-[#0a0c10]">
+        {/* Animated Gradient Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black opacity-90" />
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-blue-600/20 blur-[120px] rounded-full animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-indigo-600/10 blur-[120px] rounded-full" />
+        
+        {/* Subtle Grid overlay */}
         <div
-          className="absolute inset-0 opacity-[0.03]"
+          className="absolute inset-0 opacity-[0.05]"
           style={{
-            backgroundImage: `repeating-linear-gradient(0deg,#fff 0,#fff 1px,transparent 0,transparent 50%),repeating-linear-gradient(90deg,#fff 0,#fff 1px,transparent 0,transparent 50%)`,
-            backgroundSize: '40px 40px',
+            backgroundImage: `radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)`,
+            backgroundSize: '32px 32px',
           }}
         />
 
         {/* Logo */}
-        <div className="relative flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg">
-            <Heart className="h-5 w-5 text-white" strokeWidth={2.5} />
+        <div className="relative group flex items-center gap-3 select-none">
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-transform duration-500 group-hover:scale-110">
+            <Heart className="h-6 w-6 text-white" strokeWidth={2.5} />
           </div>
           <div>
-            <p className="text-white font-bold text-lg tracking-wide">Padma</p>
-            <p className="text-blue-300 text-xs">Care Coordination Platform</p>
+            <h2 className="text-white font-black text-2xl tracking-tighter leading-none">Padma</h2>
+            <p className="text-blue-400/60 text-[10px] uppercase font-black tracking-[0.2em] mt-1">Care Coordination</p>
           </div>
         </div>
 
-        {/* Headline */}
-        <div className="relative mt-16 flex-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs font-medium mb-6">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Built for chronic disease management teams
+        {/* Content Section */}
+        <div className="relative mt-20 flex-1 flex flex-col justify-center max-w-lg">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-blue-300 text-xs font-bold mb-8 backdrop-blur-md shadow-xl w-fit">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse" />
+            <span className="uppercase tracking-widest text-[10px]">Trusted by 200+ Clinical Teams</span>
           </div>
-          <h1 className="text-4xl font-bold text-white leading-tight">
-            Coordinate care.<br />
-            <span className="text-blue-400">Improve outcomes.</span>
+
+          <h1 className="text-5xl font-black text-white leading-[1.1] tracking-tight mb-6">
+            Clinical precision.<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-300">
+              Human-centric care.
+            </span>
           </h1>
-          <p className="mt-4 text-slate-400 text-base leading-relaxed max-w-sm">
-            Padma brings together clinical pathways, task management and patient engagement
-            in a single platform designed for multidisciplinary care teams.
+          
+          <p className="text-slate-400 text-lg leading-relaxed font-medium mb-12">
+            The intelligent platform for multidisciplinary chronic disease management and automated care pathways.
           </p>
 
-          <div className="mt-10 space-y-5">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="flex items-start gap-4">
-                <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0">
+          <div className="grid gap-6">
+            {FEATURES.map((f, i) => (
+              <div 
+                key={f.title} 
+                className="group flex items-start gap-5 p-4 rounded-2xl border border-white/5 bg-white/[0.02] transition-all duration-300 hover:bg-white/[0.05] hover:border-white/10"
+              >
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-white/10 flex items-center justify-center text-blue-400 transition-transform duration-300 group-hover:scale-110">
                   {f.icon}
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-sm">{f.title}</p>
-                  <p className="text-slate-400 text-xs mt-0.5">{f.desc}</p>
+                  <h4 className="text-white font-bold text-base">{f.title}</h4>
+                  <p className="text-slate-500 text-sm mt-1 leading-snug">{f.desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="relative mt-8 flex items-center gap-8 pt-6 border-t border-slate-700/60">
+        {/* Dynamic Proof Stats */}
+        <div className="relative mt-auto pt-10 border-t border-white/10 flex items-center justify-between">
           {[
-            { value: '1,247', label: 'Active Patients' },
-            { value: '384',   label: 'Open Pathways' },
-            { value: '98.2%', label: 'Uptime SLA' },
+            { value: '1.2M+', label: 'Interventions' },
+            { value: '380+',   label: 'Clinics' },
+            { value: '99.9%', label: 'Compliance' },
           ].map((s) => (
             <div key={s.label}>
-              <p className="text-white font-bold text-xl">{s.value}</p>
-              <p className="text-slate-500 text-xs">{s.label}</p>
+              <p className="text-white font-black text-2xl tracking-tight">{s.value}</p>
+              <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-1">{s.label}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Right Panel ────────────────────────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center bg-slate-50 p-6 overflow-y-auto">
-        <div className="w-full max-w-[400px]">
+      {/* ── Right Panel (Login Form) ────────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center p-8 relative overflow-y-auto bg-slate-50 dark:bg-slate-900/40">
+        {/* Subtle background glow for dark mode */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-xl opacity-20 pointer-events-none hidden dark:block">
+          <div className="absolute inset-0 bg-blue-500/20 blur-[120px] rounded-full" />
+        </div>
 
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-8">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center">
-              <Heart className="h-4 w-4 text-white" strokeWidth={2.5} />
+        <div className="w-full max-w-[440px] relative z-10">
+          {/* Mobile logo only visible on small screens */}
+          <div className="lg:hidden flex items-center justify-center gap-3 mb-10 pb-6 border-b border-slate-200">
+            <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg">
+              <Heart className="h-5 w-5 text-white" strokeWidth={2.5} />
             </div>
-            <div>
-              <p className="text-slate-900 font-bold">Padma</p>
-              <p className="text-slate-500 text-xs">Care Coordination Platform</p>
-            </div>
+            <h2 className="text-slate-900 dark:text-white font-black text-2xl tracking-tighter">Padma</h2>
           </div>
 
-          {/* Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-slate-900">Welcome back</h2>
-              <p className="text-slate-500 text-sm mt-1">Sign in to your organisation account</p>
+          {/* Main Card */}
+          <div className={cn(
+            "rounded-3xl border transition-all duration-500 p-10",
+            "bg-white/80 dark:bg-slate-900/60 backdrop-blur-2xl shadow-2xl",
+            "border-white dark:border-white/5 shadow-slate-200/50 dark:shadow-black/20"
+          )}>
+            <div className="mb-8">
+              <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Login</h2>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium">Access your clinical dashboard</p>
             </div>
 
-            {/* Error */}
+            {/* Error Message */}
             {error && (
-              <div className="mb-4 flex items-start gap-2.5 p-3 rounded-lg bg-red-50 border border-red-200">
-                <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700">{error}</p>
+              <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-red-500/10 border border-red-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                <p className="text-sm text-red-600 dark:text-red-400 font-semibold">{error}</p>
               </div>
             )}
 
-            {/* SSO */}
+            {/* SSO / Identity Provider */}
             <button
               type="button"
               onClick={handleSSO}
               disabled={ssoLoading || loading}
-              className="w-full flex items-center justify-center gap-3 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold text-sm transition-all duration-150 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex items-center justify-center gap-3 h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white font-black text-[11px] uppercase tracking-[0.2em] transition-all duration-300 shadow-xl shadow-indigo-500/20 disabled:opacity-50 disabled:active:scale-100"
             >
-              {ssoLoading
-                ? <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                : <Lock className="h-4 w-4" />}
-              {ssoLoading ? 'Redirecting…' : 'Sign in with SSO / OIDC'}
-              {!ssoLoading && <ArrowRight className="h-4 w-4 ml-auto" />}
+              {ssoLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Shield className="h-5 w-5 opacity-70 transition-transform group-hover:scale-110" />
+              )}
+              {ssoLoading ? 'Authenticating...' : 'Enterprise SSO Login'}
+              {!ssoLoading && <ArrowRight className="h-4 w-4 ml-auto opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />}
             </button>
 
-            <div className="my-4 flex items-center gap-3">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-xs text-slate-400 font-medium">or sign in with email</span>
-              <div className="flex-1 h-px bg-slate-200" />
+            <div className="my-8 flex items-center gap-4">
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+              <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest">or email</span>
+              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
             </div>
 
-            {/* Email + Password form */}
-            <form onSubmit={handleSubmit} className="space-y-3">
-              {/* Email */}
+            {/* Traditional Login Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-xs font-medium text-slate-700 mb-1.5">
-                  Email address
+                <label htmlFor="email" className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">
+                  Email Address
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <div className="relative group/field">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 transition-colors group-focus-within/field:text-blue-500 pointer-events-none" />
                   <input
                     id="email"
                     type="email"
-                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@organisation.com"
+                    placeholder="name@organisation.com"
                     disabled={loading}
-                    className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition disabled:opacity-50"
+                    className="w-full h-14 pl-12 pr-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-black/20 text-slate-900 dark:text-white text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all disabled:opacity-50"
                   />
                 </div>
               </div>
 
-              {/* Password */}
               <div>
-                <label htmlFor="password" className="block text-xs font-medium text-slate-700 mb-1.5">
+                <label htmlFor="password" className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">
                   Password
                 </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <div className="relative group/field">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 transition-colors group-focus-within/field:text-blue-500 pointer-events-none" />
                   <input
                     id="password"
                     type={showPw ? 'text' : 'password'}
-                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     disabled={loading}
-                    className="w-full h-11 pl-10 pr-11 rounded-xl border border-slate-300 bg-white text-slate-900 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition disabled:opacity-50"
+                    className="w-full h-14 pl-12 pr-12 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-black/20 text-slate-900 dark:text-white text-base font-medium placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/50 transition-all disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
-                    tabIndex={-1}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                   >
-                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPw ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
               </div>
 
-              {/* Submit */}
               <button
                 type="submit"
                 disabled={!isFormValid || loading}
-                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-semibold text-sm transition-all duration-150 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed mt-1"
+                className="w-full h-14 rounded-2xl bg-slate-900 dark:bg-white dark:text-slate-900 text-white font-black text-xs uppercase tracking-[0.2em] transition-all duration-300 shadow-2xl hover:bg-slate-800 dark:hover:bg-blue-50 active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 flex items-center justify-center gap-2 mt-4"
               >
-                {loading
-                  ? <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  : null}
-                {loading ? 'Signing in…' : 'Sign in'}
+                {loading && <Loader2 className="h-5 w-5 animate-spin" />}
+                {loading ? 'Processing...' : 'Sign In'}
               </button>
             </form>
 
-            {/* Demo hint */}
-            <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 font-medium">Demo credentials</p>
+            {/* Crystal Demo Hint Container */}
+            <div className="mt-8 p-6 rounded-[2rem] bg-indigo-500/[0.03] border border-indigo-500/10 backdrop-blur-sm group/demo">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500/60">Sandbox Environment</p>
                 <button
                   type="button"
                   onClick={fillDemo}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-semibold hover:underline"
+                  className="text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 transition-colors underline decoration-2 underline-offset-4"
                 >
-                  Fill in
+                  Auto-fill
                 </button>
               </div>
-              <div className="mt-1.5 space-y-0.5">
-                <p className="text-xs text-slate-600 font-mono">{DEMO_EMAIL}</p>
-                <p className="text-xs text-slate-600 font-mono">{DEMO_PASSWORD}</p>
-              </div>
-            </div>
-
-            {/* Trust indicators */}
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
-              {['Secured with bcrypt', 'HIPAA compliant', 'Role-based access'].map((item) => (
-                <div key={item} className="flex items-center gap-1.5 text-xs text-slate-500">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-500 flex-shrink-0" />
-                  <span>{item}</span>
+              <div className="space-y-1.5 font-mono text-xs text-slate-600 dark:text-slate-400">
+                <div className="flex justify-between items-center px-3 py-1.5 rounded-lg bg-indigo-500/5">
+                  <span className="opacity-50">{DEMO_EMAIL}</span>
                 </div>
-              ))}
+                <div className="flex justify-between items-center px-3 py-1.5 rounded-lg bg-indigo-500/5">
+                  <span className="opacity-50">••••••••</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <p className="mt-3 text-center text-xs text-slate-400">
-            By signing in you agree to Padma&apos;s{' '}
-            <span className="text-blue-600 cursor-pointer hover:underline">Terms of Service</span>{' '}
-            and{' '}
-            <span className="text-blue-600 cursor-pointer hover:underline">Privacy Policy</span>.
+          <p className="mt-8 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 leading-relaxed">
+            By accessing this platform, you agree to comply with HIPAA guidelines and Padma's{' '}
+            <span className="text-blue-500 cursor-pointer border-b border-blue-500/30 hover:border-blue-500 transition-all">Security Protocol</span>.
           </p>
         </div>
       </div>

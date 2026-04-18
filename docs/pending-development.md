@@ -1,8 +1,8 @@
 # Padma — Pending Development Backlog
 
-> **Last updated:** 2026-04-03
-> **Backend completion:** ~85% (core clinical workflows production-ready)
-> **Frontend completion:** 0% (not started)
+> **Last updated:** 2026-04-18
+> **Backend completion:** ~90% (core clinical workflows and communication APIs implemented)
+> **Frontend completion:** ~75% (core coordinator workflows implemented; production hardening and tests still pending)
 
 This document captures everything that is **not yet implemented** across the Padma platform — backend gaps, frontend, infrastructure, testing, and integrations. Items are grouped by priority.
 
@@ -13,8 +13,8 @@ This document captures everything that is **not yet implemented** across the Pad
 1. [Backend — Critical (Must before production)](#1-backend--critical)
 2. [Backend — Missing Modules](#2-backend--missing-modules)
 3. [Backend — Stub Integrations](#3-backend--stub-integrations)
-4. [Frontend — Not Started](#4-frontend--not-started)
-5. [Testing — None exists yet](#5-testing)
+4. [Frontend — Implemented Core Screens](#4-frontend--implemented-core-screens)
+5. [Testing — Limited Coverage](#5-testing)
 6. [Infrastructure & DevOps](#6-infrastructure--devops)
 7. [Feature Requirements Coverage](#7-feature-requirements-coverage)
 8. [Technical Debt](#8-technical-debt)
@@ -26,44 +26,15 @@ This document captures everything that is **not yet implemented** across the Pad
 
 These block production deployment.
 
-### 1.1 JWT Authentication Guard
+### 1.1 Redis Service / Cache Module
 
-**File to create:** `src/common/guards/jwt-auth.guard.ts`
-
-**Problem:** `TenantMiddleware` currently trusts `x-tenant-id`, `x-user-id`, `x-user-roles` headers in dev mode. In production mode it decodes the JWT payload but signature verification is left to the guard. Without this guard applied globally, unauthenticated requests can reach protected routes.
-
-**What to implement:**
-- Extract `Authorization: Bearer <token>` header
-- Verify RS256 signature using `JWT_PUBLIC_KEY` from config
-- Validate `iss` claim matches `JWT_ISSUER`
-- Validate `exp` — reject expired tokens
-- On success, attach `oidcSub` to request for TenantMiddleware to use
-- Return `401 Unauthorized` on any failure
-
-**Apply globally in `main.ts`:**
-```typescript
-app.useGlobalGuards(new JwtAuthGuard(configService));
-```
-
-**Exclude paths:** `health`, `webhooks/(.*)` (these use HMAC verification instead)
-
-**Env vars already in `.env.example`:**
-```
-JWT_PUBLIC_KEY=
-JWT_ISSUER=
-```
-
----
-
-### 1.2 Redis Service / Cache Module
-
-**Problem:** `ioredis` is listed as a dependency and is referenced in `TenantMiddleware` (for caching permissions lookups) but no `RedisService` or `CacheModule` is wired up as a NestJS provider. Any code that calls Redis will throw at runtime.
+**Problem:** `ioredis` is listed as a dependency, but no `RedisService` or `CacheModule` is wired up as a NestJS provider. Any code that calls Redis will throw at runtime.
 
 **What to implement:**
 - `src/cache/redis.service.ts` — wrapper around `ioredis` with `get`, `set`, `del`, `setEx`
 - `src/cache/cache.module.ts` — `@Global()` module providing `RedisService`
 - Register in `app.module.ts`
-- Use in `TenantMiddleware` to cache `rbac:{userId}:{tenantId}` with 5-min TTL (avoid DB hit on every request)
+- Use in `JwtAuthGuard` or a dedicated RBAC lookup service to cache `rbac:{userId}:{tenantId}` with 5-min TTL (avoid DB hit on every request)
 
 **Env vars already in `.env.example`:**
 ```
@@ -116,7 +87,7 @@ REDIS_PORT=6380
 - `segment-evaluator.service.ts`
 - `dto/create-segment.dto.ts`
 
-**Data model** (add to `schema-core.prisma`):
+**Data model** (add to `backend/services/care-coordination/prisma/schema.prisma`):
 ```prisma
 model PatientSegment {
   id           String   @id @default(uuid()) @db.Uuid
@@ -264,58 +235,62 @@ ZEAL_API_KEY=
 
 ---
 
-## 4. Frontend — Not Started
+## 4. Frontend — Implemented Core Screens
 
 **Technology:** Next.js 14 (App Router), React 18, shadcn/ui, Tailwind CSS, TanStack Query, Zustand
 
-**Directory to create:** `/Users/sajithchandran/aira/padma/frontend/`
+**Directory:** `/Users/sajithchandran/aira/padma/frontend/`
 
-### 4.1 Pages & Screens
+### 4.1 Implemented Pages & Screens
 
 | Screen | Route | Description |
 |---|---|---|
-| Login / SSO redirect | `/login` | OIDC redirect to tenant IdP |
+| Login | `/login` | Demo/session login stores token, tenant, and user metadata for local UI state |
 | Dashboard | `/dashboard` | Coordinator overview — overdue tasks, upcoming tasks, adherence stats |
-| Patient List | `/patients` | Paginated, searchable, filterable list of enrolled patients |
-| Patient 360 | `/patients/:id` | Full patient view — current stage, tasks, history, messages |
-| Care Tasks | `/tasks` | My tasks view — filter by status, due date, priority |
-| Clinical Pathways | `/pathways` | Pathway library — list, search |
-| Pathway Builder | `/pathways/:id/edit` | Drag-and-drop stage + intervention editor |
-| Enroll Patient | `/patients/:id/enroll` | Select pathway, set care team, initial clinical data |
-| Escalation Rules | `/settings/escalation` | Create and manage escalation rule chains |
-| Templates | `/settings/templates` | Communication template management |
-| Users & Roles | `/settings/users` | Invite users, assign roles |
-| Tenant Settings | `/settings/tenant` | Org profile, feature flags, OIDC config |
-| Segments | `/segments` | Create/manage patient cohorts, run bulk actions |
-| Roles & Permissions | `/settings/roles` | Custom role builder with permission matrix |
+| Patient List | `/patients` | Searchable/status-filterable list of enrolled patients; `filter=mine` shows only patients whose linked pathway care team includes the current user |
+| Patient 360 | `/patients/:id` | Single patient workspace with pathway selector, monitor, tasks, care-chat, and timeline |
+| Care Tasks | `/tasks` | Task worklist with my/team filters and assignment/status actions |
+| Clinical Pathways | `/pathways` | Pathway library, pathway metadata, and care-team mapping |
+| Pathway Builder | `/pathways/:id/builder` | Visual stage/intervention/transition editor |
+| Enrollment | `/enrollment` | Select patient and pathway, then create/start enrollments |
+| Communications | `/communications` | Inbox/outbound message history, patient conversation filter, and send-message modal |
+| Communication Templates | `/communication-templates` | Template master and approval flow |
+| Users & Roles | `/users` | User and role administration |
+| Care Team | `/care-team` | Named care-team master |
+| Observation Items | `/observation-items` | Clinical observation item configuration |
+| Privacy & Consent | `/privacy-consent` | Patient consent recording and privacy workflows |
+| Tenant Settings | `/settings` | Tenant configuration and feature flags |
 
-### 4.2 Component Library
+### 4.2 Remaining Frontend Gaps
 
-- Pathway stage timeline component (horizontal stepper showing current stage)
-- Task card component (status badge, due date, priority indicator, actions)
-- Adherence ring chart (per-patient circular progress)
-- Condition DSL builder UI (drag-and-drop condition nodes for transitions/escalation)
-- Real-time notification bell (SSE feed from backend)
-- Consent banner (display and capture patient consent)
+- Replace session-storage token handling with httpOnly cookie storage and OIDC callback flow
+- Add route-level permission handling and hidden/disabled UI states by role
+- Add E2E tests for the primary coordinator journeys
+- Add real-time notifications after the SSE backend is implemented
+- Harden empty/error/loading states across all workflows with consistent user-facing copy
+- Add accessible keyboard flows for the pathway builder and complex data grids
 
 ### 4.3 State Management
 
-- `usePatientStore` (Zustand) — currently viewed patient context
-- `useTenantStore` (Zustand) — current tenant + feature flags
-- `useAuthStore` (Zustand) — current user + role + permissions
-- TanStack Query for all server state (tasks, enrollments, pathways)
+- TanStack Query handles server state for patients, enrollments, tasks, pathways, care teams, communications, templates, users, and privacy
+- Zustand stores UI/auth state used by layout, sidebar, and session persistence
+- Axios attaches only `Authorization: Bearer <token>` from session storage in local development
 
 ### 4.4 Auth Flow
 
-- OIDC redirect → receive JWT → store in httpOnly cookie
-- Axios/fetch interceptor attaches `Authorization: Bearer <token>` + `x-tenant-id` header on every request
-- Token refresh via silent iframe or refresh_token grant
+- Current dev flow: login stores token/tenant/user metadata in session storage and Axios forwards the Bearer token
+- Production target: OIDC redirect → receive JWT → store in httpOnly cookie → verify JWT server-side → refresh through secure refresh flow
 
 ---
 
 ## 5. Testing
 
-**Current state:** Zero test files exist. `jest` and `ts-jest` are installed but unused.
+**Current state:** Backend has a minimal Nest e2e test scaffold. Most domain services and frontend workflows still lack automated tests. Current verification has relied mainly on TypeScript checks and production builds:
+
+```bash
+cd frontend && npm run type-check && npm run build
+cd backend/services/care-coordination && npm run build
+```
 
 ### 5.1 Unit Tests (High Priority)
 
@@ -346,51 +321,22 @@ ZEAL_API_KEY=
 
 ## 6. Infrastructure & DevOps
 
-### 6.1 Dockerfile for Backend Service
+### 6.1 Production Hardening
 
-**File to create:** `backend/services/care-coordination/Dockerfile`
+- Backend and frontend Dockerfiles exist, with `docker-compose.yml` for local infrastructure and `docker-compose.prod.yml` for the full stack
+- Health endpoint exists at `GET /api/v1/health`
+- **Missing:** Deep health check with DB/Redis pings using `@nestjs/terminus`
+- **Missing:** Redis provider/cache module wired into the Nest application
+- **Missing:** CI/CD pipeline with lint, type-check, test, build, Docker image publish, and migration deploy
 
-```dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
+### 6.2 Logging & Observability
 
-FROM node:20-alpine AS production
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-EXPOSE 3020
-CMD ["node", "dist/main"]
-```
-
-### 6.2 Health Check Endpoint
-
-**File to create:** `src/health/health.controller.ts`
-
-```typescript
-@Controller('health')
-export class HealthController {
-  @Get()
-  check() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
-  }
-}
-```
-
-Also add deep health check (DB ping, Redis ping) using `@nestjs/terminus`.
-
-### 6.3 Logging & Observability
-
-- Structured JSON logs already configured via `nestjs-pino` ✅
-- **Missing:** Log shipping to a centralised log aggregator (Loki / CloudWatch / Datadog)
+- **Missing:** Structured JSON logging standardization across all services
+- **Missing:** Log shipping to a centralized log aggregator (Loki / CloudWatch / Datadog)
 - **Missing:** APM / distributed tracing (OpenTelemetry setup)
 - **Missing:** Metrics endpoint (`/metrics` in Prometheus format)
 
-### 6.4 CI/CD Pipeline
+### 6.3 CI/CD Pipeline
 
 - GitHub Actions workflow for: lint → type-check → test → build → push Docker image
 - Prisma migration step in deployment pipeline (`prisma migrate deploy`)
@@ -410,13 +356,13 @@ Also add deep health check (DB ping, Redis ping) using `@nestjs/terminus`.
 | FR-5 | Auto-complete tasks on Athma webhook events | integrations/athma | ✅ Done | |
 | FR-6 | Coordinator dashboard (metrics, overdue, upcoming) | dashboard | ✅ Done | |
 | FR-7 | Patient 360 view (tasks, history, stage) | tasks, enrollment | ✅ Done | |
-| FR-8 | Self-serve task completion (patient-facing) | tasks | ✅ Done | Frontend not started |
+| FR-8 | Self-serve task completion (patient-facing) | tasks | ✅ Done | Coordinator UI implemented; patient-facing portal UX still pending |
 | FR-9 | Multi-channel communication with consent gating | communication, privacy | ✅ Done | |
 | FR-10 | Escalation rules + chain execution | escalation | ✅ Done | |
 | FR-11 | Patient segmentation + bulk actions | segments | ❌ Not started | Module missing |
 | FR-12 | Chat support / Genesys call scheduling | integrations/genesys | ⚠️ Stub | HTTP client not implemented |
 | FR-13 | Adherence metrics push to Medha | integrations/medha | ⚠️ Stub | HTTP client not implemented |
-| FR-14 | Pathway configuration UI | pathways + frontend | ⚠️ API done | Frontend not started |
+| FR-14 | Pathway configuration UI | pathways + frontend | ✅ Done | Visual builder implemented; accessibility and E2E tests pending |
 | FR-15 | Integrations (Athma full, rest partial) | integrations | ⚠️ Partial | Athma complete; Salesforce/Genesys/Medha are stubs |
 
 ---
@@ -427,7 +373,6 @@ Also add deep health check (DB ping, Redis ping) using `@nestjs/terminus`.
 |---|---|---|---|
 | `prisma.seed` deprecation warning | `package.json` | Low | Migrate to `prisma.config.ts` when upgrading to Prisma 7 |
 | `@db.Uuid` type annotations | All models | Low | Prisma 6 — review when upgrading |
-| Header-based auth fallback | `TenantMiddleware` | High | Dev-only — must be removed / guarded before production |
 | Inline auto-complete logic | `athma-webhook-handler.service.ts` | Medium | Refactor into `AutoCompletionModule` for extensibility |
 | `any` type casts | Various service files | Low | Replace `as any` with proper typed casts |
 | No pagination on segment evaluation | Future segments module | Medium | Large tenants (10K+ patients) need cursor-based pagination |
@@ -438,10 +383,10 @@ Also add deep health check (DB ping, Redis ping) using `@nestjs/terminus`.
 ## 9. Recommended Implementation Sequence
 
 ### Phase A — Unblock Production (2–3 weeks)
-1. JWT Auth Guard (`src/common/guards/jwt-auth.guard.ts`)
-2. Redis Service / Cache Module (`src/cache/`)
-3. Health check endpoint (`src/health/`)
-4. Dockerfile + production docker-compose
+1. Redis Service / Cache Module (`src/cache/`)
+2. Deep health checks with DB/Redis pings
+3. Security tests for `JwtAuthGuard`, ignored forged identity headers, and cross-tenant access
+4. CI/CD pipeline with lint, type-check, test, build, Docker image publish, and migration deploy
 5. Unit tests for core engine files (condition evaluator, task generator)
 
 ### Phase B — Complete Platform Features (4–6 weeks)
@@ -451,12 +396,12 @@ Also add deep health check (DB ping, Redis ping) using `@nestjs/terminus`.
 9. Medha Client (metrics push)
 10. Integration tests (webhook → task auto-complete → transition flow)
 
-### Phase C — Frontend (6–8 weeks)
-11. Next.js 14 project scaffold with auth (OIDC) + layout
-12. Dashboard + Patient List + Patient 360
-13. Task management screens
-14. Pathway Builder (stage + intervention editor)
-15. Settings screens (users, roles, templates, escalation)
+### Phase C — Frontend Hardening (2–4 weeks)
+11. Production OIDC/JWT auth flow and route permission guards
+12. E2E tests for Dashboard, My Patients, Patient 360, Tasks, Communications, Enrollment, and Pathway Builder
+13. Accessibility pass for patient search, grids, modal dialogs, and pathway builder controls
+14. Real-time notification surfaces after SSE backend is available
+15. Consistent copy/loading/error states across all screens
 
 ### Phase D — Polish & GA (2–3 weeks)
 16. Salesforce + Zeal integration clients

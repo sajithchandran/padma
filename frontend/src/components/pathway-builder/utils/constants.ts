@@ -15,10 +15,10 @@ export const STAGE_TYPE_CONFIG: Record<
   },
   intermediate: {
     label: 'Intermediate',
-    color: 'text-slate-700',
-    bg: 'bg-slate-50',
-    border: 'border-l-slate-400',
-    dot: 'bg-slate-400',
+    color: 'text-purple-700',
+    bg: 'bg-purple-50',
+    border: 'border-l-purple-500',
+    dot: 'bg-purple-500',
   },
   decision: {
     label: 'Decision',

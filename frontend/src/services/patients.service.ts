@@ -47,6 +47,7 @@ export interface ApiPatientSearchResult {
 export async function fetchPatients(params?: {
   q?: string;
   status?: string;
+  filter?: 'mine';
 }) {
   const { data } = await api.get<ApiPatientListItem[]>('/patients', { params });
   return data;

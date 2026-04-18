@@ -56,7 +56,7 @@ export class AuthController {
   /**
    * GET /api/v1/auth/me
    *
-   * Decodes the Bearer token and returns the caller's identity.
+   * Returns the caller's identity from the verified JWT.
    * Useful for the frontend to hydrate the auth store on page refresh
    * without storing sensitive data in localStorage.
    */
@@ -66,12 +66,11 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Current user info' })
   @ApiResponse({ status: 401, description: 'Missing or invalid token' })
   async me(@Req() req: Request) {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Authorization header missing');
+    const payload = (req as any).jwtPayload;
+    if (!payload?.sub) {
+      throw new UnauthorizedException('Verified JWT payload missing');
     }
-    const token = authHeader.slice(7);
-    const payload = this.authService.verifyToken(token);
+
     return { sub: payload.sub, email: payload.email, tenantId: payload.tenantId };
   }
 }

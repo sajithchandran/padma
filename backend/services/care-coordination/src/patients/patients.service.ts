@@ -4,6 +4,8 @@ import { PrismaService } from '../database/prisma.service';
 type PatientListFilters = {
   q?: string;
   status?: string;
+  filter?: string;
+  userId?: string;
 };
 
 @Injectable()
@@ -13,10 +15,25 @@ export class PatientsService {
   async findAll(tenantId: string, filters: PatientListFilters = {}) {
     const normalizedQuery = filters.q?.trim();
     const normalizedStatus = filters.status?.trim().toLowerCase();
+    const normalizedFilter = filters.filter?.trim().toLowerCase();
+    const restrictToMyCareTeams = normalizedFilter === 'mine' && Boolean(filters.userId);
 
     const enrollments = await this.prisma.patientPathwayEnrollment.findMany({
       where: {
         tenantId,
+        pathway: restrictToMyCareTeams
+          ? {
+              careTeam: {
+                is: {
+                  members: {
+                    some: {
+                      userId: filters.userId,
+                    },
+                  },
+                },
+              },
+            }
+          : undefined,
         OR: normalizedQuery
           ? [
               { patientDisplayName: { contains: normalizedQuery, mode: 'insensitive' } },

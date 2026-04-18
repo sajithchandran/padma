@@ -8,6 +8,7 @@ import {
   type EdgeProps,
 } from '@xyflow/react';
 import type { TransitionEdgeData } from '@/types/pathway-builder.types';
+import { cn } from '@/lib/utils';
 import { TRIGGER_TYPE_CONFIG } from '../utils/constants';
 
 function TransitionEdgeComponent({
@@ -37,6 +38,11 @@ function TransitionEdgeComponent({
 
   const strokeColor = triggerConfig.stroke;
   const isAutomatic = transition?.isAutomatic;
+  const isPatientCompleted = data?.patientState === 'completed';
+  const isPatientAvailable = data?.patientState === 'available';
+  const patientStroke = isPatientCompleted ? '#10b981' : isPatientAvailable ? '#2563eb' : strokeColor;
+  const strokeWidth = selected || isPatientCompleted || isPatientAvailable ? 4 : 3;
+  const opacity = isPatientCompleted || isPatientAvailable ? 1 : selected ? 1 : 0.78;
 
   return (
     <>
@@ -45,11 +51,12 @@ function TransitionEdgeComponent({
         className="react-flow__edge-path"
         d={edgePath}
         style={{
-          stroke: selected ? 'var(--primary)' : strokeColor,
-          strokeWidth: selected ? 2.5 : 1.8,
+          stroke: selected ? 'var(--primary)' : patientStroke,
+          strokeWidth,
           fill: 'none',
-          strokeDasharray: isAutomatic ? '8 6' : undefined,
-          transition: 'stroke 0.2s ease',
+          strokeDasharray: isAutomatic || isPatientAvailable ? '12 10' : undefined,
+          transition: 'all 0.3s ease',
+          opacity,
         }}
         markerEnd="url(#arrowhead)"
       />
@@ -58,12 +65,12 @@ function TransitionEdgeComponent({
         <path
           d={edgePath}
           style={{
-            stroke: selected ? 'var(--primary)' : strokeColor,
-            strokeWidth: selected ? 2.5 : 1.8,
+            stroke: '#3b82f6', // Vibrant blue for flow
+            strokeWidth: selected ? 4 : 3,
             fill: 'none',
-            strokeDasharray: '8 6',
-            animation: 'dashdraw 0.8s linear infinite',
-            opacity: 0.8,
+            strokeDasharray: '12 10',
+            animation: 'dashdraw 0.6s linear infinite',
+            opacity: selected ? 1 : 0.9,
           }}
         />
       )}
@@ -74,15 +81,27 @@ function TransitionEdgeComponent({
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             pointerEvents: 'all',
           }}
-          className={`
-            text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border shadow-sm
-            bg-card cursor-pointer transition-all
-            ${selected ? 'border-primary ring-4 ring-primary/20 scale-110' : 'border-border'}
-            ${triggerConfig.color}
-            hover:shadow-md hover:scale-105 active:scale-95
-          `}
+          className={cn(
+            "group/edge px-4 py-1.5 rounded-full border shadow-lg transition-all duration-300 cursor-pointer",
+            "bg-card/80 dark:bg-slate-900/80 backdrop-blur-md",
+            selected 
+              ? "border-primary/50 ring-4 ring-primary/20 scale-110 shadow-primary/10" 
+              : isPatientCompleted
+                ? "border-emerald-500/40 ring-2 ring-emerald-500/10"
+                : isPatientAvailable
+                  ? "border-primary/40 ring-2 ring-primary/10"
+                  : "border-border/50 hover:border-primary/30 hover:scale-105"
+          )}
         >
-          {transition?.ruleName || 'Transition'}
+          <div className="flex items-center gap-2">
+            <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px_currentColor]", triggerConfig.color)} />
+            <span className={cn(
+              "text-[10px] font-bold uppercase tracking-[0.15em] whitespace-nowrap",
+              selected ? "text-foreground" : "text-muted-foreground group-hover/edge:text-foreground"
+            )}>
+              {transition?.ruleName || 'Transition'}
+            </span>
+          </div>
         </div>
       </EdgeLabelRenderer>
     </>

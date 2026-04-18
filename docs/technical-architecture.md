@@ -8,7 +8,7 @@ Padma is a new standalone **clinical pathway and care coordination platform** th
 
 **Hierarchy:** `Clinical Pathway → Stages → Interventions → Tasks`
 
-**Current implementation note (April 2026):** The core pathway engine, visual pathway builder, named care-team master, care-task template library, patient enrollment/start/transition workflow, task assignment/completion, internal care-team chat, communication templates, async outbound communication queue, privacy consent UI/APIs, and single-page patient pathway monitor are implemented in the Padma repo. Remaining gaps are mainly around formal program/subscription models, device/clinical observation ingestion, automated risk scoring, real-time SSE, and deeper external-system integration.
+**Current implementation note (April 2026):** The core pathway engine, visual pathway builder, named care-team master, care-task template library, patient enrollment/start/transition workflow, task assignment/completion, internal care-team chat, communication templates, async outbound communication queue, privacy consent UI/APIs, patient registry with "My Patients" care-team filtering, communications inbox/outbound history, and single-page patient pathway monitor are implemented in the Padma repo. Remaining gaps are mainly around formal program/subscription models, device/clinical observation ingestion, automated risk scoring, real-time SSE, and deeper external-system integration.
 
 **Care Settings:** The platform supports patients across **outpatient**, **inpatient**, and **home care** settings — and patients who transition between them. Care setting is a first-class dimension on pathways, stages, tasks, and communication.
 
@@ -56,7 +56,7 @@ PatientPathwayEnrollment (patient enrolled in a pathway)
 
 ---
 
-## 3. Database Schema (padma_core)
+## 3. Database Schema (Unified Application Database)
 
 ### ClinicalPathway
 The top-level evidence-based protocol (e.g., "ADA Type 2 Diabetes Management Pathway").
@@ -590,7 +590,7 @@ padma/frontend/src/
 │   └── communication/  (template management)
 ├── shared/
 │   ├── components/     (shadcn/ui)
-│   ├── lib/api/        (Axios with tenant headers)
+│   ├── lib/api/        (Axios with Bearer token)
 │   ├── lib/sse/        (SSE client hook)
 │   └── hooks/
 └── store/              (Zustand)
@@ -598,7 +598,11 @@ padma/frontend/src/
 
 Key UI: **Pathway Builder** — visual editor where admins define stages as nodes in a graph, draw transitions between them, configure conditions for each transition, map a default care team, and add interventions either manually or from the care-task template library. Pathway codes are generated automatically using the tenant's configured code format.
 
+Key UI: **Patient Registry** — `/patients` lists enrolled patients aggregated from enrollment snapshots. `/patients?filter=mine` limits the registry to enrollments whose linked care pathway has a named care team containing the current user. The "Register Patient" action is intentionally not shown on the registry screen; new enrollments are handled from the enrollment workflow.
+
 Key UI: **Patient Page** — `/patients/[id]` is the single patient workspace. It includes a reusable patient header, pathway selector, selected pathway monitor, active tasks, stage transition controls, care-team chat, and stage lifecycle timeline. If a patient has multiple pathways, the user selects the pathway on this page instead of navigating to a separate detail screen.
+
+Key UI: **Communications** — `/communications` provides Inbox and Outbound views over patient message history. The patient selector filters conversation history through `/communication/messages?patientId=...`; the backend accepts message filters in the same query DTO as pagination so patient-specific filtering passes global whitelist validation.
 
 ---
 
@@ -752,7 +756,7 @@ Configurable per intervention template via `reminderConfig` JSON.
 - `POST /api/v1/enrollments/:id/pause|resume|cancel|complete`
 
 ### Patients
-- `GET /api/v1/patients` — enrolled patient registry aggregated from enrollment snapshots
+- `GET /api/v1/patients` — enrolled patient registry aggregated from enrollment snapshots; supports `q`, `status`, and `filter=mine`
 - `GET /api/v1/patients/search` — typeahead patient search by name/MRN
 
 ### Tasks
@@ -778,7 +782,7 @@ Configurable per intervention template via `reminderConfig` JSON.
 - `GET /api/v1/communication/templates/:id` — template detail
 - `POST /api/v1/communication/templates/:id/approve` — approve template
 - `POST /api/v1/communication/send` — validate/render/persist ready-to-send patient message
-- `GET /api/v1/communication/messages` — tenant-wide communication history
+- `GET /api/v1/communication/messages` — tenant-wide communication history; supports `patientId`, `direction`, `channel`, `status`, and pagination query params
 - `GET /api/v1/patients/:patientId/messages` — patient message history
 - `GET/POST/DELETE /api/v1/privacy/consents/:patientId` — patient consent records
 - `GET /api/v1/privacy/dsar/:patientId` and `POST /api/v1/privacy/erasure/:patientId` — privacy operations
@@ -796,12 +800,14 @@ Configurable per intervention template via `reminderConfig` JSON.
 
 ## 11. Security, VAPT Hardening & GDPR/Privacy Compliance
 
+Detailed security design and implementation notes are maintained in [`docs/security-architecture.md`](./security-architecture.md).
+
 ### 11.1 Authentication & Authorization (VAPT: Auth bypass prevention)
 
-- **JWT with RS256** — asymmetric signing (public/private key pair); tokens validated on every request via NestJS guard
-- **Token expiry:** Access token = 15 min, Refresh token = 7 days (httpOnly, secure, sameSite=strict cookie)
-- **OIDC SSO:** Shared identity provider with Zeal ecosystem; no local password storage in Padma
-- **MFA enforcement:** High-privilege roles (admin, supervisor) require TOTP/SMS MFA
+- **JWT with RS256** — asymmetric signing; tokens are validated on every protected request via the global `JwtAuthGuard`.
+- **Trusted identity source:** Protected APIs trust only the verified Bearer token. The frontend no longer supplies `x-tenant-id`, `x-user-id`, or `x-user-roles` as trusted identity inputs.
+- **Current local login:** `POST /api/v1/auth/login` validates local credentials and signs an RS256 JWT using `JWT_PRIVATE_KEY`; protected APIs verify using `JWT_PUBLIC_KEY`.
+- **Production target:** OIDC provider, httpOnly secure cookies, short-lived access tokens, refresh-token rotation, and MFA for high-privilege roles.
 - **RBAC with permission matrix:**
   | Role | Pathways | Enrollments | Tasks | Dashboard | Settings | Patient Data |
   |------|----------|-------------|-------|-----------|----------|-------------|
@@ -816,14 +822,14 @@ Configurable per intervention template via `reminderConfig` JSON.
 
 ### 11.2 Multi-Tenancy Isolation (VAPT: Tenant data leakage)
 
-- **Tenant context middleware:** Extract and validate `x-tenant-id` from JWT claims (NOT from user-supplied header alone)
-- **Prisma middleware:** Auto-inject `WHERE tenant_id = ?` on ALL queries; auto-set `tenant_id` on ALL inserts
-- **Defense in depth:** PostgreSQL Row-Level Security (RLS) policies as a second barrier — even if Prisma middleware bypassed, DB enforces tenant isolation
+- **Tenant context guard:** `JwtAuthGuard` verifies the RS256 Bearer JWT, extracts `tenantId` from claims, resolves the user by `sub`, verifies active tenant membership, loads role/permissions, and attaches `request.tenantContext`.
+- **Query scoping:** Services scope data access by `tenantId` from `tenantContext`; query-level ownership rules are implemented where workflows require them.
+- **Future defense in depth:** Prisma tenant scoping middleware and PostgreSQL Row-Level Security (RLS) policies.
   ```sql
   CREATE POLICY tenant_isolation ON care_tasks
     USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
   ```
-- **Cross-tenant test:** Automated integration tests that attempt cross-tenant data access and assert 0 results
+- **Cross-tenant tests:** Planned integration tests that attempt cross-tenant data access and assert 0 results.
 - **Tenant ID in all indexes:** Every index starts with `tenant_id` to prevent full table scans
 
 ### 11.3 Input Validation & Injection Prevention (VAPT: OWASP Top 10)
@@ -1025,7 +1031,7 @@ padma/backend/services/care-coordination/src/
 ## 12. Phased Implementation Roadmap
 
 ### Current Implementation Snapshot (April 2026)
-- **Done:** Auth/RBAC foundation, tenant settings, pathway CRUD, visual pathway builder, stage/intervention/transition APIs, auto-generated pathway code, named care teams, care-team mapping to pathways, care-task template library, patient enrollment/start/transition, task queues, task status/assignment/completion, patient registry, single patient pathway monitor, care-team chat, communication templates, async communication delivery scheduler, privacy consent UI/APIs, dashboard summary APIs.
+- **Done:** Auth/RBAC foundation, tenant settings, pathway CRUD, visual pathway builder, stage/intervention/transition APIs, auto-generated pathway code, named care teams, care-team mapping to pathways, care-task template library, patient enrollment/start/transition, task queues, task status/assignment/completion, patient registry, care-team-scoped "My Patients" filtering, single patient pathway monitor, care-team chat, communication templates, communications inbox/outbound history, async communication delivery scheduler, privacy consent UI/APIs, dashboard summary APIs.
 - **Partially done:** Transition evaluation and stage transition readiness exist, but automated event/webhook-driven clinical-data updates and coordinator transition proposals need hardening.
 - **Not done / future:** Formal care-program/subscription models, tier entitlements, patient monitoring data tables, device/CGM ingestion, automated risk score history, full SSE real-time fan-out, Medha KPI export, Genesys call workflows, Salesforce logging depth, production-grade RLS/encryption policies.
 
@@ -1089,6 +1095,8 @@ padma/backend/services/care-coordination/src/
 | Internal care chat | Separate `care-chat/` module, not patient outbound communication | Care team needs clinical collaboration and system updates independent from patient messaging |
 | Care task templates | Tenant-level reusable library copied into stage-owned interventions | Reuse common tasks without coupling old pathways to future template edits |
 | Patient monitor UX | Single patient page with selected pathway query param | Avoid confusing split between patient detail and pathway detail pages |
+| "My Patients" semantics | Filter by linked pathway care-team membership | A patient belongs in a user's list when the user is part of the named care team assigned to that care pathway, not only when they are the primary coordinator |
+| Message history query validation | Dedicated list-message query DTO | Pagination and filters share one whitelisted query object so `patientId` filtering does not fail global validation |
 | Job queue | Postgres-backed (SKIP LOCKED) | Proven Zeal PRM pattern; transactional |
 | Real-time | SSE (not WebSocket) | Unidirectional; simpler; native NestJS |
 | Database | Unified Prisma schema currently; engagement models are separated by domain tables | Simpler local development; physical DB split can be revisited before production if needed |

@@ -16,12 +16,14 @@ export class PatientsController {
   @ApiOperation({ summary: 'List enrolled patients for the tenant' })
   @ApiQuery({ name: 'q', required: false, description: 'Search by patient name, MRN, or pathway name' })
   @ApiQuery({ name: 'status', required: false, description: 'Filter by aggregated patient status' })
+  @ApiQuery({ name: 'filter', required: false, description: 'Use "mine" to show patients whose pathway care team includes the current user' })
   findAll(
     @Tenant() tenant: TenantContext,
     @Query('q') q?: string,
     @Query('status') status?: string,
+    @Query('filter') filter?: string,
   ) {
-    return this.patientsService.findAll(tenant.tenantId, { q, status });
+    return this.patientsService.findAll(tenant.tenantId, { q, status, filter, userId: tenant.userId });
   }
 
   @Get('search')

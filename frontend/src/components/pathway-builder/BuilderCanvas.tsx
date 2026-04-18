@@ -147,21 +147,25 @@ export function BuilderCanvas({
         <defs>
           <marker
             id="arrowhead"
-            viewBox="0 0 16 16"
-            refX="14"
-            refY="8"
-            markerWidth="16"
-            markerHeight="16"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 16 8 L 0 16 z" fill="currentColor" className="text-muted-foreground/40" />
+            <path 
+              d="M 0 0 L 10 5 L 0 10 L 2 5 z" 
+              fill="currentColor" 
+              className="text-muted-foreground/50 transition-colors duration-300" 
+            />
           </marker>
         </defs>
       </svg>
 
       <style>{`
         @keyframes dashdraw {
-          to { stroke-dashoffset: -10; }
+          to { stroke-dashoffset: -22; }
         }
       `}</style>
 
