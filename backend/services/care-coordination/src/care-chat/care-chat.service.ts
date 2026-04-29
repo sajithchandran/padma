@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '.prisma/client';
+import type { InputJsonValue } from '@prisma/client/runtime/library';
 import { PrismaService } from '../database/prisma.service';
 import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 
@@ -12,6 +13,15 @@ type EnrollmentContext = {
   patientDisplayName: string | null;
   patientMrn: string | null;
   planName: string;
+};
+
+type CareChatAuthor = {
+  id: string;
+  displayName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  avatarUrl: string | null;
 };
 
 @Injectable()
@@ -95,7 +105,7 @@ export class CareChatService {
         stageId: enrollment.currentStageId,
         messageType: 'user',
         body: trimmed,
-        metadata: (metadata as Prisma.InputJsonValue) ?? undefined,
+        metadata: (metadata as InputJsonValue) ?? undefined,
         createdBy: userId,
       },
     });
@@ -128,7 +138,7 @@ export class CareChatService {
         messageType: 'system',
         eventType: input.eventType,
         body: input.body.trim(),
-        metadata: (input.metadata as Prisma.InputJsonValue) ?? undefined,
+        metadata: (input.metadata as InputJsonValue) ?? undefined,
         createdBy: input.createdBy ?? undefined,
       },
     });
@@ -162,7 +172,7 @@ export class CareChatService {
       return messages.map((message) => ({ ...message, author: null }));
     }
 
-    const users = await this.prisma.user.findMany({
+    const users: CareChatAuthor[] = await this.prisma.user.findMany({
       where: { id: { in: authorIds } },
       select: {
         id: true,

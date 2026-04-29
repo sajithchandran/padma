@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '.prisma/client-core';
+import { Prisma } from '.prisma/client';
 import { PrismaService } from '../database';
 
 export interface AthmaLabResultEvent {
